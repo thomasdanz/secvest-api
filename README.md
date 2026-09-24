@@ -1,27 +1,40 @@
 # secvest-api
 
-Reverse Engineering der REST-Schnittstelle der **ABUS Secvest Touch (FUAA50500)**, die auch die offizielle App nutzt. Ziel ist eine vollständige OpenAPI-Spezifikation als Grundlage für eine Home-Assistant-Anbindung.
+Reverse-engineered documentation of the REST API that the official app uses to talk to the **ABUS Secvest Touch (FUAA50500)** alarm panel. The goal is a complete OpenAPI specification that home-automation integrations can build on.
 
-**Nicht im Umfang:** die Schnittstelle der Web-Oberfläche (`sec_*.cgi`, `*.cgx`) – das ist eine andere API.
+Not in scope: the API behind the panel's web interface (`sec_*.cgi`, `*.cgx`), which is a different interface.
 
-## Aufbau
+> **Disclaimer:** This is an unofficial community project, not affiliated with or endorsed by ABUS. The panel is security equipment — use this at your own risk, never load-test it, and be careful with anything that arms, disarms or switches outputs.
 
-| Pfad | Inhalt |
+## Layout
+
+| Path | Content |
 |---|---|
-| `openapi.yaml` | Spezifikation, wächst mit jeder Erkenntnis |
-| `fixtures/` | geschwärzte Beispielantworten, benannt nach Methode und Pfad |
-| `captures/` | Rohmitschnitte, **nicht versioniert** (gitignored) |
+| `openapi.yaml` | The specification; grows with every finding |
+| `fixtures/` | Redacted example responses, named after method and path |
+| `scripts/redact.py` | Redacts raw captures and checks fixtures before a commit |
+| `captures/` | Raw captures, **not versioned** |
 
-## Belastbarkeit
+## Evidence levels
 
-Jede Operation trägt `x-evidence`:
+Every operation carries `x-evidence`, and `x-sources` where it comes from third-party code:
 
-- `verified` – an der eigenen Anlage abgefragt, Antwort liegt in `fixtures/`
-- `source` – aus fremdem Code/Doku (node-red-contrib-secvest, homebridge-secvest, PySecvest), nicht geprüft
-- `assumption` – Vermutung
+- `verified` — observed on a real panel, the redacted response is in `fixtures/`
+- `source` — taken from third-party code or docs ([node-red-contrib-secvest](https://github.com/yreiser/node-red-contrib-secvest), [homebridge-secvest](https://github.com/chris1705/homebridge-secvest), [PySecvest](https://github.com/chris1705/PySecvest)), not checked yet
+- `assumption` — educated guess
 
-## Regeln
+## Redaction
 
-- Keine Zugangsdaten, Seriennummern oder Benutzercodes im Repo; Fixtures vor dem Commit schwärzen.
-- Lesende Anfragen (GET) sind unkritisch. Alles, was schalten kann (PUT/POST/DELETE), nur einzeln und bewusst.
-- Keine Lasttests – die Zentrale ist Sicherheitsinfrastruktur.
+Nothing that identifies an installation goes into git: host names, IP and MAC addresses, serial numbers, user codes, phone numbers, SIP accounts, zone or user names.
+
+1. Copy `redact.example.json` to `redact.local.json` (gitignored) and list the installation-specific strings with neutral placeholders.
+2. Keep raw responses in `captures/`, then redact them into `fixtures/`:
+   ```bash
+   scripts/redact.py captures/GET_system_partitions.json fixtures/GET_system_partitions.json
+   ```
+3. Before every commit:
+   ```bash
+   scripts/redact.py --check fixtures openapi.yaml
+   ```
+
+Built-in rules replace IPv4, MAC and e-mail addresses and blank out values of sensitive-looking JSON keys (`serial`, `code`, `pin`, `user`, `phone`, `sip`, …). Always review a fixture by eye as well — the rules can't know every field.

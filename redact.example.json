@@ -1,0 +1,7 @@
+{
+  "replace": {
+    "my-alarm.example.org": "secvest.example.com",
+    "Kitchen window left": "Zone A",
+    "John": "User 1"
+  }
+}

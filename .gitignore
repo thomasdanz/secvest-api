@@ -1,7 +1,12 @@
-# Zugangsdaten
+# Credentials
 .env
 *.env
 
-# Rohmitschnitte (ungeschwärzt) – nur geschwärzte Kopien kommen nach fixtures/
+# Installation-specific redaction rules (see redact.example.json)
+redact.local.json
+
+# Raw captures (unredacted) - only redacted copies go into fixtures/
 captures/
 *.har
+
+__pycache__/
