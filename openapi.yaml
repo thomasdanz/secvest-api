@@ -32,7 +32,8 @@ info:
 
     - While the installer ("Errichter") is logged in at the panel itself, the
       API refuses every request, reading and writing, with
-      `403 {"state":"installer"}`. The app then shows "Verbindung
+      `403 {"state":"installer"}`. A normal user logged in at the keypad
+      doesn't lock the API (tested; the app guide suggests otherwise). The app then shows "Verbindung
       unterbrochen, da 'Errichter' angemeldet ist.". After the installer logs
       out, requests succeed again.
 
@@ -71,9 +72,6 @@ x-open-questions:
     The test device sends all `f`, though — a placeholder, or is the token
     registered some other way (e.g. once when the system is added in the
     app)?
-  - The app guide says the app can't connect while an installer or a user is
-    logged in at the panel. The installer gives 403 {"state":"installer"};
-    does a logged-in user give a different state?
   - Which methods besides the known ones does each resource accept?
   - Responses for an unknown partition (e.g. partitions-9) and for
     unsupported methods. An unknown path or zone gives 404.
@@ -166,8 +164,13 @@ paths:
       x-open-questions:
         - Response when arming is blocked by a fault with prevents-set —
           presumably also 200 with the unchanged state.
-        - Does arming succeed while a non-omittable entry door is open, and
-          is an exit delay visible anywhere in the API?
+        - Does arming succeed while a non-omittable entry door is open?
+        - Exit delay — the test panel's partition is configured for delayed
+          arming with a 15 s exit time, yet the API reported `set` within
+          0.3 s, and so did the GETs right after. Does arming via the API skip
+          the exit time (the panel has an "arm immediately" option for remote
+          controls), or does the API report `set` while the exit time is still
+          running?
       requestBody:
         required: true
         content:
@@ -428,18 +431,17 @@ paths:
     get:
       summary: Current faults (troubles)
       description: >
-        An open zone only shows up here if it is omittable. Open zones with
-        `omittable: false` (the entry doors on the test panel) produce no
-        fault, so they don't block arming via prevents-set. Whether a door is
+        An open zone only shows up here if it blocks arming. On the test panel
+        the entry doors are of zone type "Ein/Ausgang" (entry/exit), which may
+        be open when arming because the user leaves through them, so they
+        produce no fault. They also happen to be non-omittable; that is a
+        separate installer setting. Whether a door is
         open therefore has to be read from the zones, whether arming is
         blocked from the faults.
       x-evidence: verified
       x-open-questions:
-        - Why do non-omittable open zones produce no fault? According to the
-          user manual, open intrusion zones prevent arming except entry-route
-          zones, and entry/exit zones may be open while leaving, so the doors
-          are presumably of that type (omittable is a separate installer
-          setting). Does arming actually succeed with such a door open?
+        - Does arming actually succeed while an entry/exit door is open, and is
+          the exit delay visible anywhere?
       responses:
         "200":
           description: OK
@@ -713,19 +715,23 @@ components:
         state:
           type: string
           description: Only open and closed seen so far; tamper or other values
-            may exist.
+            may exist. The installer web interface additionally shows battery
+            low, supervision fault, tamper and signal strength (RSSI) per zone,
+            none of which is part of this object — battery and tamper show up
+            in /faults/ and the log instead.
           examples: [closed, open]
         inner:
           type: boolean
           description: Most likely the zone property "Intern überwacht" —
-            the zone is monitored when armed internally (partset). Not
-            confirmed; true for every zone on the test panel. See
-            docs/panel-behavior.md.
+            the zone is monitored when armed internally (partset). Every zone
+            on the test panel has that property and reports true, so a zone
+            without it is still needed to confirm. See docs/panel-behavior.md.
         omittable:
           type: boolean
-          description: Whether the zone may be omitted (bypassed) for arming —
-            most likely the zone property "Ausblendbar" set by the installer.
-            False for the entry doors on the test panel.
+          description: Whether the zone may be omitted (bypassed) for arming.
+            Mirrors the zone property "Ausblendbar" set by the installer
+            (checked against the installer web interface). False for the
+            entry doors on the test panel.
         omitted:
           type: boolean
           description: Whether the zone is currently omitted.

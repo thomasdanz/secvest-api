@@ -10,7 +10,7 @@ Background from the official manuals that explains what the API shows. Paraphras
   - *Eingangsweg* (entry route): no alarm while an entry delay is running, otherwise immediate alarm.
   - *Normal Alarm*, *24 h*, *Technik*, *Feuer*, *Überfall*, *Sabotage* and others.
 - **Zone properties**, also set by the installer (INST, zone properties):
-  - *Ausblendbar* (omittable): the user may omit the zone before arming. This is most likely the API's `omittable`.
+  - *Ausblendbar* (omittable): the user may omit the zone before arming. This is the API's `omittable` — checked against the installer web interface, where exactly the zones with this property report `omittable: true`.
   - *Ausblendbar Zwangsaktiv*: the zone is omitted automatically if it is open when arming.
   - *Intern überwacht* (monitored when armed internally). This is most likely the API's `inner`.
 - **Omitting** (BDA 10.3): an omitted zone isn't monitored while armed and is **included again automatically at the next disarm**. The omission therefore lasts for one arming cycle.
@@ -25,8 +25,15 @@ Background from the official manuals that explains what the API shows. Paraphras
   - supervision faults of wireless components
 
   Faults that are allowed can be overridden by the user. This matches `prevents-set` in `/faults/`: only blocking faults have it set.
-- **Why open entry doors are no fault:** A door of type Ein/Ausgang may be open when arming, because the user leaves through it during the exit delay. That fits the observation that open non-omittable doors don't show up in `/faults/`.
+- **Why open entry doors are no fault:** A door of type Ein/Ausgang may be open when arming, because the user leaves through it during the exit delay. Confirmed on the test panel: both entry/exit doors (zones 216 and 219) are of type Ein/Ausgang and don't show up in `/faults/` when open.
+- **Installer web interface** (Komponenten → Funk Zonen) lists per zone its number, name, partitions, type and properties, and status columns for battery low, omitted, supervision fault, tamper, open and signal strength (RSSI). The API's zone object only carries `state` and `omitted` of these.
 - **Exit and entry delay** (BDA 8.13): 40 s exit delay by default when arming at the keypad; the entry delay gives time to disarm after opening the front door. Through the API the new state was reported immediately. Whether a remote arm skips the delay or the API just doesn't show it is open.
+- **Partition settings** (INST, partitions), separately for full arming, internal arming, disarmed and panic:
+  - *Exit mode*: delayed arming (after the exit time, with warning tones), silent arming (same without tones), immediate arming, arming when the last entry/exit door closes (no fixed time), arming by a lock contact at the door, or ending the exit via a dedicated button zone.
+  - *Exit time* and *entry time*: 10–120 s each. The test panel uses delayed arming with 15 s exit and 25 s entry time.
+    - The exit time is how long the user has to leave through an entry/exit door after starting to arm. Exceeding it is an alarm type of its own.
+    - The entry time starts when an entry/exit door opens while armed; the user has to disarm within it or an intrusion alarm follows. Entry-route zones don't alarm while it runs.
+  - *Alarm reaction*: internal only, sirens, sirens + reporting to an alarm receiving centre, or flash variants; plus a siren delay and the external siren duration.
 - **Web interface** (BDA 13.3): arming with an open zone "doesn't happen, the lock stays open" — consistent with the API answering 200 and keeping the old state.
 
 ## Alarms
@@ -50,6 +57,6 @@ Background from the official manuals that explains what the API shows. Paraphras
 
 ## App and push
 
-- **Blocking logins** (APP): the app can't connect while an installer **or a user** is logged in at the panel. The API answers `403 {"state":"installer"}` for the installer; whether a logged-in user gives a different `state` is open.
+- **Blocking logins** (APP): according to the guide the app can't connect while an installer **or a user** is logged in at the panel. Tested: only the installer locks the API (`403 {"state":"installer"}`); with a normal user logged in at the keypad the API works as usual.
 - **Push** (APP): Push notifications have to be enabled per device by an administrator in the web interface (Configuration → Push notifications). So the panel keeps a list of app devices, which fits the `device` header.
 - **Outputs** (BDA 12.2, 10.4): The app can switch outputs of type "user defined". How is open, because the test panel has none.
