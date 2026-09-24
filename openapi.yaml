@@ -40,8 +40,10 @@ info:
       and no `WWW-Authenticate` header, so clients have to send Basic Auth
       preemptively instead of waiting for a challenge.
 
-    - An unknown path gets `404` in the same style: small HTML body, no
-      `Content-Type` (see the NotFound response).
+    - An unknown path or zone gets `404`, an invalid value in a PUT body
+      `400`, both in the same style: small HTML body, no `Content-Type`.
+      Unknown keys in a PUT body are silently ignored (`200`, nothing
+      changes).
 
     - The panel's TLS handshake is very slow (several seconds); keep one
       connection alive and reuse TLS sessions. How the app uses the API is
@@ -65,10 +67,9 @@ x-open-questions:
     test device sends all `f`, though — a placeholder, or is the token
     registered some other way (e.g. once when the system is added in the
     app)?
-  - Which methods besides the known ones does each resource accept? Is there
-    a GET on a single zone (/system/partitions-{n}/zones-{zone}/)?
-  - Responses for unknown ids (e.g. partitions-9, zones-999) and for
-    unsupported methods. An unknown path gives the NotFound response.
+  - Which methods besides the known ones does each resource accept?
+  - Responses for an unknown partition (e.g. partitions-9) and for
+    unsupported methods. An unknown path or zone gives 404.
 
 paths:
   /system/:
@@ -149,7 +150,8 @@ paths:
         answers `200` but ignores the request and returns the unchanged state
         (e.g. `set` for a request to `partset`). A client therefore has to
         compare the returned state with the requested one, and disarm first to
-        switch between the two armed states. The app doesn't even try — it
+        switch between the two armed states. The same applies to an unknown key
+        (200, nothing changes); an invalid state value gives 400. The app doesn't even try — it
         shows "Abfrage des Zustandes des Teilbereichs nicht erlaubt." without
         sending a request.
       x-evidence: verified
@@ -180,6 +182,12 @@ paths:
                 externalValue: fixtures/PUT_system_partitions-1.example4.request.json
               armWhileArmedInternally:
                 externalValue: fixtures/PUT_system_partitions-1.example5.request.json
+              unknownKey:
+                summary: Ignored, see the 200 example unknownKeyIgnored
+                externalValue: fixtures/PUT_system_partitions-1.example6.request.json
+              invalidValue:
+                summary: Gives 400
+                externalValue: fixtures/PUT_system_partitions-1.400.request.json
       responses:
         "200":
           description: The partition with its new state
@@ -200,8 +208,13 @@ paths:
                 ignoredPartsetToSet:
                   summary: set requested while partset — ignored, still partset
                   externalValue: fixtures/PUT_system_partitions-1.example5.json
+                unknownKeyIgnored:
+                  summary: '{"statesss":"set"} — ignored, still unset'
+                  externalValue: fixtures/PUT_system_partitions-1.example6.json
         "403":
           $ref: "#/components/responses/InstallerLoggedIn"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -246,18 +259,51 @@ paths:
         description: Zone id, e.g. 209.
         schema:
           type: string
+    get:
+      summary: One zone
+      description: Returns the same object as one element of the zone list.
+      x-evidence: verified
+      responses:
+        "200":
+          description: The zone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Zone"
+              examples:
+                default:
+                  externalValue: fixtures/GET_system_partitions-1_zones-209.json
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
+        "404":
+          description: Unknown zone (seen for zone 220)
+          content:
+            text/html:
+              schema:
+                type: string
+              examples:
+                unknownZone:
+                  externalValue: fixtures/GET_system_partitions-1_zones-220.404.html
     put:
       summary: Omit (bypass) a zone or include it again
       description: >
         Used by the app's "Zone ausblenden" dialog for an open zone. Omitting
         an open zone removes its zone-open fault (prevents-set), so the
-        partition can be armed. Note that `omitted` is sent as a string.
+        partition can be armed. Closed zones can be omitted and included as
+        well. Note that `omitted` is sent as a string.
+
+
+        Error behaviour: an unknown key is ignored (200 with the unchanged
+        zone), an invalid value gives 400, a zone with `omittable: false`
+        gives 403 with an empty body, an unknown zone gives 404. Because an
+        ignored request still answers 200, compare the returned `omitted`
+        with the requested value.
       x-evidence: verified
       x-open-questions:
-        - Response for a zone with omittable=false.
         - Is the omission reset automatically on disarm, and is it logged?
           The log request right after omitting returned no new entry.
-        - Does the resource accept other fields?
       requestBody:
         required: true
         content:
@@ -274,9 +320,25 @@ paths:
                 externalValue: fixtures/PUT_system_partitions-1_zones-209.request.json
               include:
                 externalValue: fixtures/PUT_system_partitions-1_zones-209.example2.request.json
+              omitClosedZone:
+                externalValue: fixtures/PUT_system_partitions-1_zones-209.example3.request.json
+              includeClosedZone:
+                externalValue: fixtures/PUT_system_partitions-1_zones-209.example4.request.json
+              unknownKey:
+                summary: Ignored, see the 200 example unknownKeyIgnored
+                externalValue: fixtures/PUT_system_partitions-1_zones-209.example5.request.json
+              invalidValue:
+                summary: Gives 400
+                externalValue: fixtures/PUT_system_partitions-1_zones-209.400.request.json
+              notOmittable:
+                summary: Zone 219 (omittable false), gives 403
+                externalValue: fixtures/PUT_system_partitions-1_zones-219.403.request.json
+              unknownZone:
+                summary: Zone 220, gives 404
+                externalValue: fixtures/PUT_system_partitions-1_zones-220.404.request.json
       responses:
         "200":
-          description: The zone after the change
+          description: The zone after the change (or unchanged, if the key was unknown)
           content:
             application/json:
               schema:
@@ -286,10 +348,42 @@ paths:
                   externalValue: fixtures/PUT_system_partitions-1_zones-209.json
                 included:
                   externalValue: fixtures/PUT_system_partitions-1_zones-209.example2.json
+                closedZoneOmitted:
+                  externalValue: fixtures/PUT_system_partitions-1_zones-209.example3.json
+                closedZoneIncluded:
+                  externalValue: fixtures/PUT_system_partitions-1_zones-209.example4.json
+                unknownKeyIgnored:
+                  externalValue: fixtures/PUT_system_partitions-1_zones-209.example5.json
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/InstallerLoggedIn"
+          description: >
+            Either the zone is not omittable (Content-Type application/json,
+            empty body) or the installer is logged in at the panel
+            (`{"state":"installer"}`, see InstallerLoggedIn). Tell them apart
+            by the body.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: string
+                    maxLength: 0
+                  - type: object
+                    properties:
+                      state:
+                        type: string
+                        const: installer
+        "404":
+          description: Unknown zone (seen for zone 220)
+          content:
+            text/html:
+              schema:
+                type: string
+              examples:
+                unknownZone:
+                  externalValue: fixtures/PUT_system_partitions-1_zones-220.404.html
 
   /alarms/:
     get:
@@ -476,6 +570,22 @@ components:
             unauthorized:
               externalValue: fixtures/GET_system.401.html
 
+    BadRequest:
+      description: >
+        Invalid value in a PUT body (e.g. {"state":"setsss"} or
+        {"omitted":"trueest"}). Plain HTML body without a Content-Type
+        header, like the 401 and 404. Unknown keys don't cause it — they are
+        ignored with 200.
+      content:
+        text/html:
+          schema:
+            type: string
+          examples:
+            invalidState:
+              externalValue: fixtures/PUT_system_partitions-1.400.html
+            invalidOmitted:
+              externalValue: fixtures/PUT_system_partitions-1_zones-209.400.html
+
     NotFound:
       description: >
         Unknown path (seen for GET /system404/). Plain HTML body without a
@@ -493,7 +603,7 @@ components:
       description: >
         The installer is logged in at the panel; the API is locked until they
         log out. Seen on every GET and on all three partition PUTs; not tested
-        for the zone PUT and the zones of partitions 2-4. Unlike a 200, the
+        for the single zone (GET/PUT) and the zones of partitions 2-4. Unlike a 200, the
         response has no Cache-Control header.
       content:
         application/json:
