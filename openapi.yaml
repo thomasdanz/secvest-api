@@ -612,13 +612,13 @@ paths:
         entries, while the other endpoints answer in about 0.1 s.
         The fixture is a subset with one entry per message pattern. The app
         only ever asks for entries newer than the newest one it already has,
-        using an OData-style `$filter`.
+        using an OData-style `$filter`, and keeps older entries in a local
+        cache — so it can show entries the panel has long overwritten. After
+        clearing the app's cache it shows exactly the unfiltered response
+        (checked for all alarm and trouble entries). The app's log filters
+        "Alarme" and "Störungen" correspond to `type` alarm and trouble.
       x-evidence: verified
       x-open-questions:
-        - The unfiltered response is not the whole log. The app shows entries
-          that are missing from it (restore events such as "RF Jamming OK" or
-          "SG Sabo ok", zone battery warnings, "TB n rückgesetzt"). How does
-          the app get the full log — other filters, paging?
         - Which other `$filter` operators and fields work? Are `$top`,
           `$skip` or `$orderby` supported?
       parameters:

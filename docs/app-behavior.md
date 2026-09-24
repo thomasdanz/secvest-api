@@ -58,7 +58,7 @@ Opening the Logbuch tab sends a single incremental request:
 GET /logs/?$filter=timestamp ge <newest known timestamp + 1>
 ```
 
-The app keeps the log locally and only fetches newer entries. The Alle / Alarme / Störungen filter works on the local copy and sends no request.
+The app keeps the log locally and only fetches newer entries. The Alle / Alarme / Störungen filter works on the local copy (by the entries' `type`) and sends no request. Because of the cache the app can show entries that the panel has overwritten long ago; after clearing the cache it shows exactly what `/logs/` returns. Times are shown as the panel's local time.
 
 ### Omitting a zone
 
