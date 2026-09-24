@@ -157,6 +157,9 @@ paths:
                 otherStates:
                   summary: Same zones a few minutes later
                   externalValue: fixtures/GET_system_partitions-1_zones.example2.json
+                doorAndWindowOpen:
+                  summary: Zone 209 (omittable) and zone 219 (not omittable) open
+                  externalValue: fixtures/GET_system_partitions-1_zones.example3.json
                 emptyPartition:
                   summary: Partition without zones (partition 2)
                   externalValue: fixtures/GET_system_partitions-2_zones.json
@@ -236,7 +239,17 @@ paths:
   /faults/:
     get:
       summary: Current faults (troubles)
+      description: >
+        An open zone only shows up here if it is omittable. Open zones with
+        `omittable: false` (the entry doors on the test panel) produce no
+        fault, so they don't block arming via prevents-set. Whether a door is
+        open therefore has to be read from the zones, whether arming is
+        blocked from the faults.
       x-evidence: verified
+      x-open-questions:
+        - Why do non-omittable open zones produce no fault? Presumably they are
+          entry/exit route zones with a delay, which may be open while arming.
+          Does arming actually succeed with such a door open?
       responses:
         "200":
           description: OK
@@ -253,6 +266,12 @@ paths:
                   externalValue: fixtures/GET_faults.example2.json
                 otherZoneOpen:
                   externalValue: fixtures/GET_faults.example3.json
+                nonOmittableZoneOpen:
+                  summary: >
+                    Zones 209 (omittable) and 219 (not omittable) open at the
+                    same time — only 209 is a fault, compare the zones example
+                    doorAndWindowOpen
+                  externalValue: fixtures/GET_faults.example4.json
 
   /logs/:
     get:
@@ -414,7 +433,8 @@ components:
         omittable:
           type: boolean
           description: Whether the zone may be omitted (bypassed) for arming.
-            False for entry doors on the test panel.
+            False for the entry doors on the test panel; such zones produce no
+            fault in /faults/ when open.
         omitted:
           type: boolean
           description: Whether the zone is currently omitted.
@@ -445,7 +465,8 @@ components:
           description: Only present for zone-related faults.
         prevents-set:
           type: boolean
-          description: Arming is blocked while this fault is present.
+          description: Arming is blocked while this fault is present. Omitting
+            the zone removes a zone-open fault.
         prevents-reset:
           type: boolean
         is-rf-warning:
