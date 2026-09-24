@@ -31,10 +31,14 @@ info:
       `Access-Control-Allow-Origin: *`.
 
     - While the installer ("Errichter") is logged in at the panel itself, the
-      API refuses requests with `403 {"state":"installer"}` (seen on
-      /system/; the app then stops and shows "Verbindung unterbrochen, da
-      'Errichter' angemeldet ist."). After the installer logs out, requests
-      succeed again.
+      API refuses every request, reading and writing, with
+      `403 {"state":"installer"}`. The app then shows "Verbindung
+      unterbrochen, da 'Errichter' angemeldet ist.". After the installer logs
+      out, requests succeed again.
+
+    - Wrong credentials get `401` with a small HTML body, no `Content-Type`
+      and no `WWW-Authenticate` header, so clients have to send Basic Auth
+      preemptively instead of waiting for a challenge.
 
     - The panel's TLS handshake is very slow (several seconds); keep one
       connection alive and reuse TLS sessions. How the app uses the API is
@@ -56,10 +60,7 @@ x-open-questions:
     token; the test device sends all `f`.
   - Which methods besides the known ones does each resource accept? Is there
     a GET on a single zone (/system/partitions-{n}/zones-{zone}/)?
-  - Responses for 401 (wrong credentials), 404 (unknown id) and unsupported
-    methods.
-  - Does the installer 403 apply to every endpoint? Only /system/ was seen,
-    because the app stops after it.
+  - Responses for 404 (unknown id) and unsupported methods.
 
 paths:
   /system/:
@@ -78,6 +79,8 @@ paths:
                   externalValue: fixtures/GET_system.json
         "403":
           $ref: "#/components/responses/InstallerLoggedIn"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /system/partitions/:
     get:
@@ -95,6 +98,10 @@ paths:
               examples:
                 default:
                   externalValue: fixtures/GET_system_partitions.json
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
 
   /system/partitions-{partition}/:
     parameters:
@@ -116,6 +123,10 @@ paths:
                   externalValue: fixtures/GET_system_partitions-1.example2.json
                 armed:
                   externalValue: fixtures/GET_system_partitions-1.example3.json
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
     put:
       summary: Arm, arm internally or disarm a partition
       description: >
@@ -183,6 +194,8 @@ paths:
                   externalValue: fixtures/PUT_system_partitions-1.example5.json
         "403":
           $ref: "#/components/responses/InstallerLoggedIn"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /system/partitions-{partition}/zones/:
     parameters:
@@ -211,6 +224,10 @@ paths:
                 emptyPartition:
                   summary: Partition without zones (partition 2)
                   externalValue: fixtures/GET_system_partitions-2_zones.json
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
 
   /system/partitions-{partition}/zones-{zone}/:
     parameters:
@@ -261,6 +278,10 @@ paths:
                   externalValue: fixtures/PUT_system_partitions-1_zones-209.json
                 included:
                   externalValue: fixtures/PUT_system_partitions-1_zones-209.example2.json
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
 
   /alarms/:
     get:
@@ -283,6 +304,10 @@ paths:
               examples:
                 idle:
                   externalValue: fixtures/GET_alarms.json
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
 
   /faults/:
     get:
@@ -320,6 +345,10 @@ paths:
                     same time — only 209 is a fault, compare the zones example
                     doorAndWindowOpen
                   externalValue: fixtures/GET_faults.example4.json
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
 
   /logs/:
     get:
@@ -365,6 +394,10 @@ paths:
                 filteredNothingNew:
                   summary: $filter=timestamp ge <newest known + 1>
                   externalValue: fixtures/GET_logs_filter-timestamp-ge.json
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
 
   /outputs/:
     get:
@@ -387,6 +420,10 @@ paths:
               examples:
                 none:
                   externalValue: fixtures/GET_outputs.json
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
 
   /cameras/:
     get:
@@ -405,6 +442,10 @@ paths:
               examples:
                 none:
                   externalValue: fixtures/GET_cameras.json
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
 
 components:
   securitySchemes:
@@ -414,10 +455,25 @@ components:
       description: Secvest user code as username.
 
   responses:
+    Unauthorized:
+      description: >
+        Wrong credentials. Plain HTML body without a Content-Type header and
+        without a WWW-Authenticate challenge. Seen on GET /system/; assumed
+        for the other endpoints.
+      content:
+        text/html:
+          schema:
+            type: string
+          examples:
+            unauthorized:
+              externalValue: fixtures/GET_system.401.html
+
     InstallerLoggedIn:
       description: >
         The installer is logged in at the panel; the API is locked until they
-        log out. Seen on GET /system/; assumed for the other endpoints.
+        log out. Seen on every GET and on all three partition PUTs; not tested
+        for the zone PUT and the zones of partitions 2-4. Unlike a 200, the
+        response has no Cache-Control header.
       content:
         application/json:
           schema:

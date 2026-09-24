@@ -76,7 +76,7 @@ The app does **not** switch directly between partset and set. Tapping arm while 
 
 ### Installer logged in at the panel
 
-While the installer ("Errichter") is logged in at the panel's own keypad, the API answers `403 {"state":"installer"}`. The app drops back to the system list with "Verbindung unterbrochen, da 'Errichter' angemeldet ist." After the installer logs out, the app connects normally again.
+While the installer ("Errichter") is logged in at the panel's own keypad, the API answers `403 {"state":"installer"}` to every request. The app drops back to the system list with "Verbindung unterbrochen, da 'Errichter' angemeldet ist." After the installer logs out, the app connects normally again.
 
 ## Timing
 
