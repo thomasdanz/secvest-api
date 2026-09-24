@@ -40,6 +40,9 @@ info:
       and no `WWW-Authenticate` header, so clients have to send Basic Auth
       preemptively instead of waiting for a challenge.
 
+    - An unknown path gets `404` in the same style: small HTML body, no
+      `Content-Type` (see the NotFound response).
+
     - The panel's TLS handshake is very slow (several seconds); keep one
       connection alive and reuse TLS sessions. How the app uses the API is
       described in docs/app-behavior.md.
@@ -56,11 +59,16 @@ security:
   - basicAuth: []
 
 x-open-questions:
-  - What is the `device` header for? 64 hex characters look like an APNs push
-    token; the test device sends all `f`.
+  - What is the `device` header for? 64 hex characters are exactly the size of
+    an APNs device token (32 bytes), and the app does receive push
+    notifications, so the panel may learn the token from this header. The
+    test device sends all `f`, though — a placeholder, or is the token
+    registered some other way (e.g. once when the system is added in the
+    app)?
   - Which methods besides the known ones does each resource accept? Is there
     a GET on a single zone (/system/partitions-{n}/zones-{zone}/)?
-  - Responses for 404 (unknown id) and unsupported methods.
+  - Responses for unknown ids (e.g. partitions-9, zones-999) and for
+    unsupported methods. An unknown path gives the NotFound response.
 
 paths:
   /system/:
@@ -467,6 +475,19 @@ components:
           examples:
             unauthorized:
               externalValue: fixtures/GET_system.401.html
+
+    NotFound:
+      description: >
+        Unknown path (seen for GET /system404/). Plain HTML body without a
+        Content-Type header, like the 401. Whether unknown ids on known
+        resources answer the same way is still open.
+      content:
+        text/html:
+          schema:
+            type: string
+          examples:
+            notFound:
+              externalValue: fixtures/GET_unknown-path.404.html
 
     InstallerLoggedIn:
       description: >
