@@ -46,6 +46,15 @@ info:
       omitting a non-omittable zone, so an empty 403 means "action not
       allowed", unlike the installer lock's `{"state":"installer"}`.
 
+    - Path segments are matched by prefix: any leading part of a segment's
+      name works, on every level and also before the id. For example
+      /system/partitions-1/z/ … /zone/ return the zone list, /system/p-1/
+      partition 1, /system/partition-1/zone-209/ zone 209, /f/ the faults
+      and /l/ the log. A segment that is longer than the name (zonesx,
+      zoness-209) or doesn't match (x) gives 404. That is also why third-party clients
+      using the singular "partition-1" and "zone" work. The paths in this
+      spec are the ones the app uses.
+
     - An unknown path, partition or zone gets `404`, an invalid value in a PUT body
       `400`, both in the same style: small HTML body, no `Content-Type`.
       Unknown keys in a PUT body are silently ignored (`200`, nothing
