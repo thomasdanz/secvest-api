@@ -65,13 +65,9 @@ security:
   - basicAuth: []
 
 x-open-questions:
-  - What is the `device` header for? 64 hex characters are exactly the size of
-    an APNs device token (32 bytes). According to the app guide, push has to
-    be enabled per device by an administrator in the web interface, so the
-    panel keeps a list of app devices — probably learnt from this header.
-    The test device sends all `f`, though — a placeholder, or is the token
-    registered some other way (e.g. once when the system is added in the
-    app)?
+  - What is the `device` header for? It has the size of an APNs token (64 hex
+    characters) but stays all `f` even while the app sends the real token in
+    PUT /register/, so it isn't the push token.
   - Which methods besides the known ones does each resource accept?
   - Responses for an unknown partition (e.g. partitions-9) and for
     unsupported methods. An unknown path or zone gives 404.
@@ -386,6 +382,63 @@ paths:
               examples:
                 unknownZone:
                   externalValue: fixtures/PUT_system_partitions-1_zones-220.404.html
+
+  /register/:
+    put:
+      summary: Register the app for push notifications
+      description: >
+        Sent by the app when the panel's connection settings are saved in the
+        app (the screen with the address, confirmed with the check mark), e.g.
+        when adding the panel; twice in the capture, 11 s apart. Each call creates a new entry in the panel's push device list
+        (web interface, Configuration -> Push Mitteilungen), even with the same
+        token, listed with the device name and the user derived from
+        `username`. A new entry has "Zugriff" (access) unchecked; according to
+        the app guide an administrator has to enable the device there before it
+        receives push notifications. Nothing is sent at a normal app start.
+      x-evidence: verified
+      x-open-questions:
+        - Response status and body — in both captured calls the connection was
+          closed after 1-2 s without a response, yet the device was
+          registered. Does the app not wait, or does the panel answer slowly
+          (e.g. because it contacts a push service)?
+        - How is a registration removed or updated from the app side, if at
+          all?
+        - Values of `platform` besides `ios` (presumably `android`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, language, device-name, token, platform]
+              properties:
+                username:
+                  type: string
+                  description: The user code the app authenticates with.
+                language:
+                  type: string
+                  description: Presumably the language of the push texts.
+                  examples: [de]
+                device-name:
+                  type: string
+                  description: Shown as the device name in the push device list.
+                token:
+                  type: string
+                  description: APNs device token, 64 hex characters.
+                  pattern: "^[0-9a-f]{64}$"
+                platform:
+                  type: string
+                  examples: [ios]
+            examples:
+              ios:
+                externalValue: fixtures/PUT_register.request.json
+      responses:
+        default:
+          description: Not captured yet (see x-open-questions).
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
 
   /alarms/:
     get:

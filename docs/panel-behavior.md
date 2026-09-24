@@ -66,5 +66,5 @@ Background from the official manuals that explains what the API shows. Paraphras
 ## App and push
 
 - **Blocking logins** (APP): according to the guide the app can't connect while an installer **or a user** is logged in at the panel. Tested: only the installer locks the API (`403 {"state":"installer"}`); with a normal user logged in at the keypad the API works as usual.
-- **Push** (APP): Push notifications have to be enabled per device by an administrator in the web interface (Configuration → Push notifications). So the panel keeps a list of app devices, which fits the `device` header.
+- **Push** (APP): Push notifications have to be enabled per device by an administrator in the web interface (Configuration → Push Mitteilungen). The list shows number, device name, user, an access checkbox ("Zugriff") and a delete button. The app adds an entry via `PUT /register/` whenever the panel's connection settings are saved in the app; new entries start without access. None of the manuals describes the page itself.
 - **Outputs** (BDA 12.2, 10.4): The app can switch outputs of type "user defined". How is open, because the test panel has none.

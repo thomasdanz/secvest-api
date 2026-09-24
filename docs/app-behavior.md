@@ -28,6 +28,16 @@ GET /cameras/         ┐ in parallel
 GET /outputs/         ┘
 ```
 
+### Saving the connection settings
+
+When the panel's connection settings are saved in the app (the screen with the address, confirmed with the check mark top right, also when adding the panel), the app registers for push notifications. A normal app start sends nothing of the kind:
+
+```text
+PUT /register/   {"username":"<user code>","language":"de","device-name":"iPhone","token":"<APNs token>","platform":"ios"}
+```
+
+It sent this twice, 11 s apart, and each call created its own entry in the panel's push device list. An administrator then has to enable the entry ("Zugriff") in the web interface before the device receives push notifications. The `device` header on every request stays all `f` regardless.
+
 ### Polling while the app is open
 
 About every **24 seconds**, on either tab:
