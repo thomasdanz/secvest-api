@@ -1,12 +1,12 @@
 # How the official app uses the API
 
-Observed on the iOS app (build `Secvest/20240402`) by capturing its traffic behind a TLS-terminating reverse proxy while recording the screen. Nothing here was switched except omitting and re-including one zone.
+Observed on the iOS app (build `Secvest/20240402`) by capturing its traffic behind a TLS-terminating reverse proxy while recording the screen, in two sessions: one only looking around plus omitting a zone, one switching between the arming states.
 
 ## Screens
 
 The app has two tabs, **Status** and **Logbuch** (log).
 
-- **Status** shows a three-way switch for the partition (arm internally / disarm / arm), a readiness line ("… ist bereit zur Aktivierung"), a **Zonen** section and a **Störungen** (faults) section.
+- **Status** shows a three-way switch for the partition (arm internally / disarm / arm), a status line, a **Zonen** section and a **Störungen** (faults) section. The status line reads "… ist bereit zur Aktivierung" (unset), "… ist Intern überwacht" (partset) or "… ist überwacht" (set).
   - The zone section only lists zones that need attention, e.g. "209 ist offen". If all are fine it says "Alle Zonen störungsfrei."
   - Tapping an open zone opens a dialog with **Zone ausblenden** (omit zone). After omitting, the zone is listed as "209 ist ausgeblendet"; tapping it again offers to include it again.
 - **Logbuch** lists log entries grouped by day, with a filter **Alle / Alarme / Störungen** (all / alarms / faults). Tapping an entry shows its details, including the user name.
@@ -60,6 +60,23 @@ GET /alarms/ + GET /faults/
 ```
 
 Omitting the open zone removed its zone-open fault (`prevents-set: true`) from `/faults/`.
+
+### Arming and disarming
+
+```text
+PUT /system/partitions-1/   {"state":"partset"}   → partition object with the new state
+GET /alarms/ + GET /faults/                        (refresh right after)
+PUT /system/partitions-1/   {"state":"unset"}
+PUT /system/partitions-1/   {"state":"set"}
+```
+
+The app shows "Bitte warten…" while the request runs, which took 0.1–0.3 s. The new state appears immediately; there is no transitional state in the API.
+
+The app does **not** switch directly between partset and set. Tapping arm while armed internally (or the other way round) shows "Abfrage des Zustandes des Teilbereichs nicht erlaubt." without sending any request, so the user has to disarm first. What the panel itself would answer is unknown.
+
+### Installer logged in at the panel
+
+While the installer ("Errichter") is logged in at the panel's own keypad, the API answers `403 {"state":"installer"}`. The app drops back to the system list with "Verbindung unterbrochen, da 'Errichter' angemeldet ist." After the installer logs out, the app connects normally again.
 
 ## Timing
 

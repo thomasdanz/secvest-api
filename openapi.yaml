@@ -30,6 +30,12 @@ info:
       with `Cache-Control: no-cache, no-store, max-age=0` and
       `Access-Control-Allow-Origin: *`.
 
+    - While the installer ("Errichter") is logged in at the panel itself, the
+      API refuses requests with `403 {"state":"installer"}` (seen on
+      /system/; the app then stops and shows "Verbindung unterbrochen, da
+      'Errichter' angemeldet ist."). After the installer logs out, requests
+      succeed again.
+
     - The panel's TLS handshake is very slow (several seconds); keep one
       connection alive and reuse TLS sessions. How the app uses the API is
       described in docs/app-behavior.md.
@@ -52,6 +58,8 @@ x-open-questions:
     a GET on a single zone (/system/partitions-{n}/zones-{zone}/)?
   - Responses for 401 (wrong credentials), 404 (unknown id) and unsupported
     methods.
+  - Does the installer 403 apply to every endpoint? Only /system/ was seen,
+    because the app stops after it.
 
 paths:
   /system/:
@@ -68,6 +76,8 @@ paths:
               examples:
                 default:
                   externalValue: fixtures/GET_system.json
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
 
   /system/partitions/:
     get:
@@ -105,16 +115,22 @@ paths:
     put:
       summary: Arm, arm internally or disarm a partition
       description: >
-        Used by the app (request verified). According to the user the response
-        includes the resulting state; not captured yet.
+        Returns the partition with its new state. The change took effect
+        immediately (0.1–0.3 s through the proxy), and the next GET already
+        showed the new state; no transitional state such as an exit delay was
+        visible. A pending battery fault (prevents-set false) did not block
+        arming. The app itself never switches directly between partset and set:
+        it rejects that locally with "Abfrage des Zustandes des Teilbereichs
+        nicht erlaubt." without sending a request, so the user has to disarm
+        first.
       x-evidence: verified
       x-sources: [node-red-contrib-secvest, homebridge-secvest]
       x-open-questions:
-        - Exact response body on success.
-        - Response when arming is blocked (e.g. a fault with prevents-set, or a
-          weak battery) — the request currently fails, cause unconfirmed.
-        - Can the state switch directly between partset and set? The
-          Node-RED flow always goes through unset first.
+        - What does the panel answer to a direct partset -> set or set ->
+          partset PUT? Only the app's own restriction is known.
+        - Response when arming is blocked by a fault with prevents-set.
+        - Does arming succeed while a non-omittable entry door is open, and
+          is an exit delay visible anywhere in the API?
       requestBody:
         required: true
         content:
@@ -126,15 +142,28 @@ paths:
                 state:
                   $ref: "#/components/schemas/PartitionState"
             examples:
-              arm:
-                value: { state: set }
               armInternally:
-                value: { state: partset }
+                externalValue: fixtures/PUT_system_partitions-1.request.json
               disarm:
-                value: { state: unset }
+                externalValue: fixtures/PUT_system_partitions-1.example2.request.json
+              arm:
+                externalValue: fixtures/PUT_system_partitions-1.example3.request.json
       responses:
         "200":
-          description: Resulting state (format not captured yet)
+          description: The partition with its new state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Partition"
+              examples:
+                armedInternally:
+                  externalValue: fixtures/PUT_system_partitions-1.json
+                disarmed:
+                  externalValue: fixtures/PUT_system_partitions-1.example2.json
+                armed:
+                  externalValue: fixtures/PUT_system_partitions-1.example3.json
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
 
   /system/partitions-{partition}/zones/:
     parameters:
@@ -365,6 +394,23 @@ components:
       scheme: basic
       description: Secvest user code as username.
 
+  responses:
+    InstallerLoggedIn:
+      description: >
+        The installer is logged in at the panel; the API is locked until they
+        log out. Seen on GET /system/; assumed for the other endpoints.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              state:
+                type: string
+                const: installer
+          examples:
+            installer:
+              externalValue: fixtures/GET_system.403.json
+
   parameters:
     partition:
       name: partition
@@ -456,6 +502,8 @@ components:
         ui-string:
           type: string
           description: Text as shown on the panel, e.g. "REP01 Batt schwach".
+            Not stable — the same fault (same type and id) was once reported
+            as "RF Repeater" in between, so don't use it as a key.
         affects-partition:
           type: array
           items:
