@@ -58,7 +58,8 @@ Background from the official manuals that explains what the API shows. Paraphras
   - Opening an entry/exit door while armed starts the entry time with a pulsed tone, and the log records "Eing gest. Z<zone>".
   - The user has to disarm before it runs out, otherwise an intrusion alarm follows. Closing the door again doesn't stop it; only the special exit mode with a lock contact allows re-locking before the entry time has started.
   - Entry-route zones may trigger during the entry time. Any other zone counts as leaving the entry route: depending on the setting "Eingang Alarm Verzögerung" either an immediate full alarm, or 30 s of internal alarm first (log "Eing. Weg verlass. Z…" / "Eingang Abweichung Z…").
-  - The partition state presumably stays `set` during the entry time, so the log entry would be the only way for a client to notice it (untested).
+  - Tested for set and partset via the API: opening entry/exit door 219 after arming started the entry time (pulsed tone until disarmed), no new fault appeared in `/faults/` meanwhile, and disarming with `unset` within the entry time ended it without an alarm.
+  - The log records "Eing gest. Z219" a few seconds after arming, when the door was opened, for set and partset alike. The zone is only in the text. The partition state presumably stays `set`/`partset` during the entry time, so this log entry may be the only way for a client to notice it; since log requests take about 6 s, that is slow compared to a 25 s entry time.
 - **Web interface** (BDA 13.3): arming with an open zone doesn't happen, the lock stays open. The API answers such a request with `409 Conflict` and the list of blocking faults.
 
 ## Alarms

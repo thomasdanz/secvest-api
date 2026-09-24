@@ -598,8 +598,14 @@ paths:
         "intern aktiv" / "deaktiv" for arming via keypad, app and API alike;
         "Ben<user>TB <n> Übergehen" with every arming, presumably for
         overriding permitted faults; "Ben<user> TB <n> Ausgang" when an exit
-        time starts at the keypad. Arming attempts rejected with 409 are not
+        time starts at the keypad; "Eing gest. Z<zone>" when an entry time
+        starts (the zone is only in the text, the event has no zone or user
+        field). Arming attempts rejected with 409 or silently ignored are not
         logged.
+
+
+        Log requests are slow: 6 s for a filtered request returning 22
+        entries, while the other endpoints answer in about 0.1 s.
         The fixture is a subset with one entry per message pattern. The app
         only ever asks for entries newer than the newest one it already has,
         using an OData-style `$filter`.
@@ -644,6 +650,12 @@ paths:
                 filteredNothingNew:
                   summary: $filter=timestamp ge <newest known + 1>
                   externalValue: fixtures/GET_logs_filter-timestamp-ge.json
+                filteredEntryTime:
+                  summary: >
+                    $filter=timestamp ge <start of day>, excerpt — arming,
+                    entry time started by entry/exit door 219, disarming (set
+                    twice, then partset)
+                  externalValue: fixtures/GET_logs_filter-timestamp-ge.example2.json
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
