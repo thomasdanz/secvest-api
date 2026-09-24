@@ -72,7 +72,7 @@ PUT /system/partitions-1/   {"state":"set"}
 
 The app shows "Bitte warten…" while the request runs, which took 0.1–0.3 s. The new state appears immediately; there is no transitional state in the API.
 
-The app does **not** switch directly between partset and set. Tapping arm while armed internally (or the other way round) shows "Abfrage des Zustandes des Teilbereichs nicht erlaubt." without sending any request, so the user has to disarm first. What the panel itself would answer is unknown.
+The app does **not** switch directly between partset and set. Tapping arm while armed internally (or the other way round) shows "Abfrage des Zustandes des Teilbereichs nicht erlaubt." without sending any request, so the user has to disarm first. Sent directly (outside the app), such a request gets `200` from the panel, but it is ignored and the response carries the unchanged state.
 
 ### Installer logged in at the panel
 

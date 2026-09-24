@@ -112,6 +112,10 @@ paths:
               examples:
                 default:
                   externalValue: fixtures/GET_system_partitions-1.json
+                armedInternally:
+                  externalValue: fixtures/GET_system_partitions-1.example2.json
+                armed:
+                  externalValue: fixtures/GET_system_partitions-1.example3.json
     put:
       summary: Arm, arm internally or disarm a partition
       description: >
@@ -119,16 +123,21 @@ paths:
         immediately (0.1–0.3 s through the proxy), and the next GET already
         showed the new state; no transitional state such as an exit delay was
         visible. A pending battery fault (prevents-set false) did not block
-        arming. The app itself never switches directly between partset and set:
-        it rejects that locally with "Abfrage des Zustandes des Teilbereichs
-        nicht erlaubt." without sending a request, so the user has to disarm
-        first.
+        arming.
+
+
+        Switching directly between partset and set is not possible: the panel
+        answers `200` but ignores the request and returns the unchanged state
+        (e.g. `set` for a request to `partset`). A client therefore has to
+        compare the returned state with the requested one, and disarm first to
+        switch between the two armed states. The app doesn't even try — it
+        shows "Abfrage des Zustandes des Teilbereichs nicht erlaubt." without
+        sending a request.
       x-evidence: verified
       x-sources: [node-red-contrib-secvest, homebridge-secvest]
       x-open-questions:
-        - What does the panel answer to a direct partset -> set or set ->
-          partset PUT? Only the app's own restriction is known.
-        - Response when arming is blocked by a fault with prevents-set.
+        - Response when arming is blocked by a fault with prevents-set —
+          presumably also 200 with the unchanged state.
         - Does arming succeed while a non-omittable entry door is open, and
           is an exit delay visible anywhere in the API?
       requestBody:
@@ -148,6 +157,10 @@ paths:
                 externalValue: fixtures/PUT_system_partitions-1.example2.request.json
               arm:
                 externalValue: fixtures/PUT_system_partitions-1.example3.request.json
+              armInternallyWhileArmed:
+                externalValue: fixtures/PUT_system_partitions-1.example4.request.json
+              armWhileArmedInternally:
+                externalValue: fixtures/PUT_system_partitions-1.example5.request.json
       responses:
         "200":
           description: The partition with its new state
@@ -162,6 +175,12 @@ paths:
                   externalValue: fixtures/PUT_system_partitions-1.example2.json
                 armed:
                   externalValue: fixtures/PUT_system_partitions-1.example3.json
+                ignoredSetToPartset:
+                  summary: partset requested while set — ignored, still set
+                  externalValue: fixtures/PUT_system_partitions-1.example4.json
+                ignoredPartsetToSet:
+                  summary: set requested while partset — ignored, still partset
+                  externalValue: fixtures/PUT_system_partitions-1.example5.json
         "403":
           $ref: "#/components/responses/InstallerLoggedIn"
 
