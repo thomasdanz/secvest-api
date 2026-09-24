@@ -168,8 +168,10 @@ paths:
         silently does nothing — the partition stays unset, no tone, no log
         entry, no fault (tested repeatedly, still unset 30 s later). `partset`
         answers 409 with the door as a blocking zone-open fault, although
-        GET /faults/ doesn't list it. Presumably the API's arming without exit
-        time can't wait for the door to close. A client has to check the
+        GET /faults/ doesn't list it. Presumably, since arming via the API (and
+        internal arming configured as "immediate") has no exit time, an open
+        entry/exit door can't be left through and so blocks arming — reported
+        as 409 for partset, but silently for set. A client has to check the
         returned state and look at the zones itself to tell the user which
         door is open. The app doesn't even try — it
         shows "Abfrage des Zustandes des Teilbereichs nicht erlaubt." without

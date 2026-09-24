@@ -43,6 +43,22 @@ Background from the official manuals that explains what the API shows. Paraphras
     - The exit time is how long the user has to leave through an entry/exit door after starting to arm. Exceeding it is an alarm type of its own.
     - The entry time starts when an entry/exit door opens while armed; the user has to disarm within it or an intrusion alarm follows. Entry-route zones don't alarm while it runs.
   - *Alarm reaction*: internal only, sirens, sirens + reporting to an alarm receiving centre, or flash variants; plus a siren delay and the external siren duration.
+  - The *internal arming* tab has its own exit mode, exit and entry time and alarm reaction. It also has **"Ein/Aus bei Intern als"**, which decides how entry/exit doors behave when armed internally: still as entry/exit (with entry time) or as *Normal Alarm* (immediate alarm when opened).
+  - Test panel settings:
+
+    | | Full arming (set) | Internal arming (partset) |
+    |---|---|---|
+    | Exit mode | delayed, 15 s | immediate |
+    | Entry time | 25 s | 40 s |
+    | Alarm reaction | sirens + reporting to a receiving centre | sirens only |
+    | Entry/exit doors when internal | – | stay entry/exit |
+
+  - With immediate internal arming there is no exit time to leave through an open door, which is presumably why an open entry/exit door blocks partset with 409. Full arming via the API also skips the exit time, but there the request is silently ignored instead.
+- **Entry time in detail** (BDA 8.13, INST):
+  - Opening an entry/exit door while armed starts the entry time with a pulsed tone, and the log records "Eing gest. Z<zone>".
+  - The user has to disarm before it runs out, otherwise an intrusion alarm follows. Closing the door again doesn't stop it; only the special exit mode with a lock contact allows re-locking before the entry time has started.
+  - Entry-route zones may trigger during the entry time. Any other zone counts as leaving the entry route: depending on the setting "Eingang Alarm Verzögerung" either an immediate full alarm, or 30 s of internal alarm first (log "Eing. Weg verlass. Z…" / "Eingang Abweichung Z…").
+  - The partition state presumably stays `set` during the entry time, so the log entry would be the only way for a client to notice it (untested).
 - **Web interface** (BDA 13.3): arming with an open zone doesn't happen, the lock stays open. The API answers such a request with `409 Conflict` and the list of blocking faults.
 
 ## Alarms
