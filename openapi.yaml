@@ -153,14 +153,19 @@ paths:
         (e.g. `set` for a request to `partset`). A client therefore has to
         compare the returned state with the requested one, and disarm first to
         switch between the two armed states. The same applies to an unknown key
-        (200, nothing changes); an invalid state value gives 400. The app doesn't even try — it
+        (200, nothing changes); an invalid state value gives 400.
+
+
+        If arming is blocked, e.g. by an open omittable zone, the panel
+        answers `409 Conflict` with the list of blocking faults (only those
+        with `prevents-set`, other faults such as a weak battery are left
+        out), for set and partset alike. After omitting the zone the same
+        request succeeds. The app doesn't even try — it
         shows "Abfrage des Zustandes des Teilbereichs nicht erlaubt." without
         sending a request.
       x-evidence: verified
       x-sources: [node-red-contrib-secvest, homebridge-secvest]
       x-open-questions:
-        - Response when arming is blocked by a fault with prevents-set —
-          presumably also 200 with the unchanged state.
         - Does arming succeed while a non-omittable entry door is open?
       requestBody:
         required: true
@@ -189,6 +194,15 @@ paths:
               invalidValue:
                 summary: Gives 400
                 externalValue: fixtures/PUT_system_partitions-1.400.request.json
+              blockedSet:
+                summary: set while zone 209 is open — gives 409
+                externalValue: fixtures/PUT_system_partitions-1.409.request.json
+              blockedPartset:
+                summary: partset while zone 209 is open — gives 409
+                externalValue: fixtures/PUT_system_partitions-1.409.example2.request.json
+              setAfterOmitting:
+                summary: set after omitting the open zone 209 — succeeds
+                externalValue: fixtures/PUT_system_partitions-1.example7.request.json
       responses:
         "200":
           description: The partition with its new state
@@ -212,10 +226,31 @@ paths:
                 unknownKeyIgnored:
                   summary: '{"statesss":"set"} — ignored, still unset'
                   externalValue: fixtures/PUT_system_partitions-1.example6.json
+                armedWithOmittedZone:
+                  summary: set after omitting the open zone 209
+                  externalValue: fixtures/PUT_system_partitions-1.example7.json
         "403":
           $ref: "#/components/responses/InstallerLoggedIn"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "409":
+          description: >
+            Arming blocked. The body lists the blocking faults (the ones with
+            prevents-set); seen for an open omittable zone, for set and
+            partset.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Fault"
+              examples:
+                openZoneSet:
+                  summary: set requested while zone 209 was open
+                  externalValue: fixtures/PUT_system_partitions-1.409.json
+                openZonePartset:
+                  summary: partset requested while zone 209 was open
+                  externalValue: fixtures/PUT_system_partitions-1.409.example2.json
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -288,7 +323,9 @@ paths:
         Used by the app's "Zone ausblenden" dialog for an open zone. Omitting
         an open zone removes its zone-open fault (prevents-set), so the
         partition can be armed. Closed zones can be omitted and included as
-        well. Note that `omitted` is sent as a string.
+        well. The omission lasts one arming cycle: after arming (set or
+        partset) and disarming again, the zone reports `omitted: false`
+        (tested, matches the user manual). Note that `omitted` is sent as a string.
 
 
         Error behaviour: an unknown key is ignored (200 with the unchanged
@@ -298,10 +335,10 @@ paths:
         with the requested value.
       x-evidence: verified
       x-open-questions:
-        - According to the user manual an omitted zone is included again
-          automatically at the next disarm. Not verified via the API yet. Is
-          the omission logged? The log request right after omitting returned
-          no new entry.
+        - (answered) The omission itself is not logged when it is set. The log
+          shows "Ben<user> Zone<id> ausgeblendet" when the partition is armed
+          with the zone omitted, and "Ben053 Zone<id> ausgeblendet ok" when it
+          is included again at disarm.
       requestBody:
         required: true
         content:
@@ -522,7 +559,19 @@ paths:
       summary: Event log
       description: >
         Without a filter the panel returned 600 entries, not strictly sorted;
-        600 is the documented log capacity (oldest entries are overwritten).
+        600 is the documented log capacity. Entries are overwritten in the
+        order they were written, not by their timestamp: a later log had
+        dropped 100 entries from all over the timestamp range, including
+        recent ones. Entries dated 2019-01-01 are probably written after a
+        restart before the clock was set (assumption).
+
+
+        What gets logged for arming (seen): "Ben<user> TB <n> aktiv" /
+        "intern aktiv" / "deaktiv" for arming via keypad, app and API alike;
+        "Ben<user>TB <n> Übergehen" with every arming, presumably for
+        overriding permitted faults; "Ben<user> TB <n> Ausgang" when an exit
+        time starts at the keypad. Arming attempts rejected with 409 are not
+        logged.
         The fixture is a subset with one entry per message pattern. The app
         only ever asks for entries newer than the newest one it already has,
         using an OData-style `$filter`.
@@ -559,6 +608,11 @@ paths:
               examples:
                 subset:
                   externalValue: fixtures/GET_logs.json
+                armingCycles:
+                  summary: >
+                    Arming cycles from a later log — keypad arming with exit
+                    time, and arming with an omitted zone
+                  externalValue: fixtures/GET_logs.example2.json
                 filteredNothingNew:
                   summary: $filter=timestamp ge <newest known + 1>
                   externalValue: fixtures/GET_logs_filter-timestamp-ge.json
@@ -854,13 +908,18 @@ components:
       properties:
         timestamp:
           type: string
-          description: Unix time in seconds.
+          description: >
+            The panel's local wall-clock time, encoded as Unix seconds — read
+            it as UTC to get the local time. With the panel in CEST, entries
+            are 2 h ahead of the real Unix time (checked against the HTTP Date
+            header), and the app shows them the same way.
         partition:
           type: string
           description: '"0" in every entry seen so far.'
         user:
           type: string
-          description: User slot ("0" = installer).
+          description: User slot ("0" = installer). Entries by "Ben053" carry no
+            user; 53 seems to be the panel itself (time set, zone re-included).
         username:
           type: string
         zone:

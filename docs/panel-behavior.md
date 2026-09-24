@@ -13,7 +13,7 @@ Background from the official manuals that explains what the API shows. Paraphras
   - *Ausblendbar* (omittable): the user may omit the zone before arming. This is the API's `omittable` — checked against the installer web interface, where exactly the zones with this property report `omittable: true`.
   - *Ausblendbar Zwangsaktiv*: the zone is omitted automatically if it is open when arming.
   - *Intern überwacht* (monitored when armed internally). This is most likely the API's `inner`.
-- **Omitting** (BDA 10.3): an omitted zone isn't monitored while armed and is **included again automatically at the next disarm**. The omission therefore lasts for one arming cycle.
+- **Omitting** (BDA 10.3): an omitted zone isn't monitored while armed and is **included again automatically at the next disarm**. The omission therefore lasts for one arming cycle. Confirmed via the API.
 
 ## Arming
 
@@ -42,7 +42,7 @@ Background from the official manuals that explains what the API shows. Paraphras
     - The exit time is how long the user has to leave through an entry/exit door after starting to arm. Exceeding it is an alarm type of its own.
     - The entry time starts when an entry/exit door opens while armed; the user has to disarm within it or an intrusion alarm follows. Entry-route zones don't alarm while it runs.
   - *Alarm reaction*: internal only, sirens, sirens + reporting to an alarm receiving centre, or flash variants; plus a siren delay and the external siren duration.
-- **Web interface** (BDA 13.3): arming with an open zone "doesn't happen, the lock stays open" — consistent with the API answering 200 and keeping the old state.
+- **Web interface** (BDA 13.3): arming with an open zone doesn't happen, the lock stays open. The API answers such a request with `409 Conflict` and the list of blocking faults.
 
 ## Alarms
 
@@ -60,7 +60,9 @@ Background from the official manuals that explains what the API shows. Paraphras
 
 ## Log
 
-- **Capacity** (BDA 10.8): at most 600 entries, oldest overwritten first. The unfiltered `/logs/` response had exactly 600 entries.
+- **Capacity** (BDA 10.8): at most 600 entries, oldest overwritten first. The unfiltered `/logs/` response had exactly 600 entries. "Oldest" means oldest written, not the smallest timestamp, since timestamps aren't monotonic (e.g. after a restart before the clock is set).
+- **Timestamps** are local wall-clock time encoded as Unix seconds, so they are off by the UTC offset if read as real Unix time.
+- **Arming** is logged the same way whether it comes from the keypad, the app or the API. Every arming also logs an "Übergehen" (override) entry. An omitted zone is logged when the partition is armed with it and again ("… ok") when it is included at disarm. Rejected attempts (409) leave no entry.
 - **Message texts:** The installer manual has an appendix listing every log message text with its meaning ("Logbuch Einträge").
 
 ## App and push
