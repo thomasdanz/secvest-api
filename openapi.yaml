@@ -88,6 +88,9 @@ x-open-questions:
   - What is the `device` header for? It has the size of an APNs token (64 hex
     characters) but stays all `f` even while the app sends the real token in
     PUT /register/, so it isn't the push token.
+  - The firmware's name table contains "partsets" next to the known resources
+    and field names. GET /system/partsets/ and GET /partsets/ both give 404,
+    so it is probably a field name rather than a resource. Where is it used?
   - What does GET /register/ do? It answered 200 with an empty JSON body,
     unlike other unsupported methods (see below), so it probably exists and
     returns nothing without a matching device header or registration.
@@ -648,8 +651,6 @@ paths:
         "Alarme" and "Störungen" correspond to `type` alarm and trouble.
       x-evidence: verified
       x-open-questions:
-        - Which other `$filter` operators and fields work? Are `$top`,
-          `$skip` or `$orderby` supported?
       parameters:
         - name: $filter
           in: query
@@ -657,7 +658,8 @@ paths:
           description: >
             OData-style filter. Seen: `timestamp ge <unix seconds>` (the app
             uses the newest known timestamp + 1). Returns `[]` when nothing
-            matches.
+            matches. The firmware contains only this one filter pattern, so
+            other operators or fields are most likely not supported.
           schema:
             type: string
           examples:
@@ -845,9 +847,13 @@ components:
     PartitionState:
       type: string
       enum: [unset, partset, set]
+      x-enum-from-firmware: [unset-alarm, set-alarm, partset-alarm, acknowledged]
       description: >
         unset = disarmed, partset = armed internally (home), set = armed.
-        There is no "alarm" state here, see /alarms/. There is no "arming"
+        The panel firmware also contains the values unset-alarm, set-alarm,
+        partset-alarm and acknowledged next to them, which suggests the
+        partition reports an alarm in its state and "acknowledged" after the
+        alarm has been acknowledged (source: firmware strings, not observed). There is no "arming"
         state either: while the exit time runs after arming at the keypad, the
         partition still reports unset and only switches to set when the exit
         time is over (tested with a 15 s exit time).
@@ -892,8 +898,8 @@ components:
           type: string
         state:
           type: string
-          description: Only open and closed seen so far; tamper or other values
-            may exist. The installer web interface additionally shows battery
+          description: Only open and closed seen so far. The firmware lists
+            tamper, fault and zoneFault next to them (not observed). The installer web interface additionally shows battery
             low, supervision fault, tamper and signal strength (RSSI) per zone,
             none of which is part of this object — battery and tamper show up
             in /faults/ and the log instead.

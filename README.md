@@ -22,7 +22,7 @@ Not in scope: the API behind the panel's web interface (`sec_*.cgi`, `*.cgx`), w
 Every operation carries `x-evidence`, and `x-sources` where it comes from third-party code:
 
 - `verified` — observed on a real panel, the redacted response is in `fixtures/`
-- `source` — taken from third-party code or docs ([node-red-contrib-secvest](https://github.com/yreiser/node-red-contrib-secvest), [homebridge-secvest](https://github.com/chris1705/homebridge-secvest), [PySecvest](https://github.com/chris1705/PySecvest)), not checked yet
+- `source` — taken from third-party code, docs or the panel firmware's strings ([node-red-contrib-secvest](https://github.com/yreiser/node-red-contrib-secvest), [homebridge-secvest](https://github.com/chris1705/homebridge-secvest), [PySecvest](https://github.com/chris1705/PySecvest)), not checked yet
 - `assumption` — educated guess
 
 What is still unknown is listed in `x-open-questions`, on the operation it belongs to or at the top of the spec.
