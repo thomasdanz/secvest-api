@@ -1,0 +1,206 @@
+openapi: 3.1.0
+info:
+  title: ABUS Secvest Touch REST API (unofficial)
+  version: 0.0.1
+  description: >
+    Reverse-engineered REST API of the ABUS Secvest Touch (FUAA50500) as used
+    by the official app. Every operation carries `x-evidence`
+    (verified | source | assumption), see README.
+
+servers:
+  - url: https://{host}:{port}
+    variables:
+      host:
+        default: secvest.local
+      port:
+        default: "4433"
+
+security:
+  - basicAuth: []
+
+paths:
+  /system/:
+    get:
+      summary: System name and partition ids
+      x-evidence: source
+      x-sources: [PySecvest]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/System"
+
+  /system/partitions/:
+    get:
+      summary: All partitions with state and zone ids
+      x-evidence: source
+      x-sources: [node-red-contrib-secvest, homebridge-secvest, PySecvest]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Partition"
+
+  /system/partitions-{partition}/:
+    parameters:
+      - $ref: "#/components/parameters/partition"
+    get:
+      summary: One partition
+      x-evidence: source
+      x-sources: [node-red-contrib-secvest]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Partition"
+    put:
+      summary: Arm, arm internally or disarm a partition
+      description: >
+        Node-RED flow switches partset <-> set via unset first (1 s delay);
+        whether a direct switch is rejected is unverified.
+      x-evidence: source
+      x-sources: [node-red-contrib-secvest, homebridge-secvest]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state:
+                  $ref: "#/components/schemas/PartitionState"
+      responses:
+        "200":
+          description: Partition after the change
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Partition"
+
+  /system/partitions-{partition}/zones/:
+    parameters:
+      - $ref: "#/components/parameters/partition"
+    get:
+      summary: Zones (detectors) of a partition
+      x-evidence: source
+      x-sources: [node-red-contrib-secvest]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Zone"
+
+  /output/:
+    get:
+      summary: Outputs
+      x-evidence: source
+      x-sources: [node-red-contrib-secvest]
+      responses:
+        "200":
+          description: OK (format unknown)
+
+  /faults/:
+    get:
+      summary: Faults
+      x-evidence: source
+      x-sources: [node-red-contrib-secvest]
+      responses:
+        "200":
+          description: OK (format unknown)
+
+  /logs/:
+    get:
+      summary: Event log
+      x-evidence: source
+      x-sources: [node-red-contrib-secvest]
+      responses:
+        "200":
+          description: OK (format unknown)
+
+  /alarms/:
+    get:
+      summary: Active alarms
+      description: >
+        Seen returning `[]` when idle (path prefix not yet confirmed).
+        Format during an active alarm is unknown.
+      x-evidence: assumption
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {}
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Secvest user code as username.
+
+  parameters:
+    partition:
+      name: partition
+      in: path
+      required: true
+      description: Partition id (1-4 according to PySecvest)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 4
+
+  schemas:
+    PartitionState:
+      type: string
+      enum: [unset, partset, set]
+
+    System:
+      type: object
+      properties:
+        name:
+          type: string
+        partitions:
+          type: array
+          items:
+            type: string
+
+    Partition:
+      type: object
+      properties:
+        id:
+          description: String or integer — PySecvest examples differ
+          type: [string, integer]
+        name:
+          type: string
+        state:
+          $ref: "#/components/schemas/PartitionState"
+        zones:
+          type: array
+          items:
+            type: string
+
+    Zone:
+      type: object
+      properties:
+        id:
+          type: [string, integer]
+        name:
+          type: string
+        state:
+          description: "`closed` when closed; other values unknown"
+          type: string

@@ -1,0 +1,7 @@
+# Zugangsdaten
+.env
+*.env
+
+# Rohmitschnitte (ungeschwärzt) – nur geschwärzte Kopien kommen nach fixtures/
+captures/
+*.har
