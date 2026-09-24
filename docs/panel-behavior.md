@@ -25,6 +25,7 @@ Background from the official manuals that explains what the API shows. Paraphras
   - supervision faults of wireless components
 
   Faults that are allowed can be overridden by the user. This matches `prevents-set` in `/faults/`: only blocking faults have it set.
+- **Arming via the API with an entry door open** (tested with entry/exit door 219): `set` is silently ignored (200, stays unset, no tone), `partset` gets 409 with the door as a blocking fault. At the keypad the exit time covers this case; the API has none.
 - **Why open entry doors are no fault:** A door of type Ein/Ausgang may be open when arming, because the user leaves through it during the exit delay. Confirmed on the test panel: both entry/exit doors (zones 216 and 219) are of type Ein/Ausgang and don't show up in `/faults/` when open.
 - **Installer web interface** (Komponenten → Funk Zonen) lists per zone its number, name, partitions, type and properties, and status columns for battery low, omitted, supervision fault, tamper, open and signal strength (RSSI). The API's zone object only carries `state` and `omitted` of these.
 - **Exit and entry delay** (BDA 8.13): 40 s exit delay by default when arming at the keypad; the entry delay gives time to disarm after opening the front door.

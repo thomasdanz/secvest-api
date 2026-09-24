@@ -160,13 +160,23 @@ paths:
         answers `409 Conflict` with the list of blocking faults (only those
         with `prevents-set`, other faults such as a weak battery are left
         out), for set and partset alike. After omitting the zone the same
-        request succeeds. The app doesn't even try — it
+        request succeeds. The list is evaluated for the requested state, so
+        it can contain faults that GET /faults/ doesn't show.
+
+
+        Open entry/exit door (zone type "Ein/Ausgang"): `set` answers 200 but
+        silently does nothing — the partition stays unset, no tone, no log
+        entry, no fault (tested repeatedly, still unset 30 s later). `partset`
+        answers 409 with the door as a blocking zone-open fault, although
+        GET /faults/ doesn't list it. Presumably the API's arming without exit
+        time can't wait for the door to close. A client has to check the
+        returned state and look at the zones itself to tell the user which
+        door is open. The app doesn't even try — it
         shows "Abfrage des Zustandes des Teilbereichs nicht erlaubt." without
         sending a request.
       x-evidence: verified
       x-sources: [node-red-contrib-secvest, homebridge-secvest]
       x-open-questions:
-        - Does arming succeed while a non-omittable entry door is open?
       requestBody:
         required: true
         content:
@@ -203,6 +213,12 @@ paths:
               setAfterOmitting:
                 summary: set after omitting the open zone 209 — succeeds
                 externalValue: fixtures/PUT_system_partitions-1.example7.request.json
+              setWithEntryDoorOpen:
+                summary: set while the entry/exit door 219 is open — ignored (200, unset)
+                externalValue: fixtures/PUT_system_partitions-1.example8.request.json
+              partsetWithEntryDoorOpen:
+                summary: partset while the entry/exit door 219 is open — gives 409
+                externalValue: fixtures/PUT_system_partitions-1.409.example3.request.json
       responses:
         "200":
           description: The partition with its new state
@@ -229,6 +245,9 @@ paths:
                 armedWithOmittedZone:
                   summary: set after omitting the open zone 209
                   externalValue: fixtures/PUT_system_partitions-1.example7.json
+                ignoredEntryDoorOpen:
+                  summary: set while the entry/exit door 219 is open — ignored, still unset
+                  externalValue: fixtures/PUT_system_partitions-1.example8.json
         "403":
           $ref: "#/components/responses/InstallerLoggedIn"
         "400":
@@ -251,6 +270,11 @@ paths:
                 openZonePartset:
                   summary: partset requested while zone 209 was open
                   externalValue: fixtures/PUT_system_partitions-1.409.example2.json
+                entryDoorOpenPartset:
+                  summary: >
+                    partset requested while the entry/exit door 219 was open
+                    (not listed in GET /faults/ at the same time)
+                  externalValue: fixtures/PUT_system_partitions-1.409.example3.json
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -520,13 +544,15 @@ paths:
         the entry doors are of zone type "Ein/Ausgang" (entry/exit), which may
         be open when arming because the user leaves through them, so they
         produce no fault. They also happen to be non-omittable; that is a
-        separate installer setting. Whether a door is
-        open therefore has to be read from the zones, whether arming is
-        blocked from the faults.
+        separate installer setting. Whether a door is open therefore has to be
+        read from the zones.
+
+
+        This list reflects the current state only. Whether a particular arming
+        request will be blocked can't be fully predicted from it: an open
+        entry/exit door blocks partset (409) and makes set a silent no-op,
+        without ever appearing here (see PUT /system/partitions-{n}/).
       x-evidence: verified
-      x-open-questions:
-        - Does arming actually succeed while an entry/exit door is open, and is
-          the exit delay visible anywhere?
       responses:
         "200":
           description: OK
@@ -853,8 +879,8 @@ components:
           type: string
           description: >
             For zone-open faults it has always been 1305 + zone id so far
-            (1514 for zone 209, 1517 for zone 212) — an observation, not
-            confirmed.
+            (1514 for zone 209, 1517 for zone 212, 1524 for zone 219) — an
+            observation, not documented.
         ui-string:
           type: string
           description: Text as shown on the panel, e.g. "REP01 Batt schwach".
