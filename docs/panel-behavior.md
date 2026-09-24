@@ -27,7 +27,15 @@ Background from the official manuals that explains what the API shows. Paraphras
   Faults that are allowed can be overridden by the user. This matches `prevents-set` in `/faults/`: only blocking faults have it set.
 - **Why open entry doors are no fault:** A door of type Ein/Ausgang may be open when arming, because the user leaves through it during the exit delay. Confirmed on the test panel: both entry/exit doors (zones 216 and 219) are of type Ein/Ausgang and don't show up in `/faults/` when open.
 - **Installer web interface** (Komponenten → Funk Zonen) lists per zone its number, name, partitions, type and properties, and status columns for battery low, omitted, supervision fault, tamper, open and signal strength (RSSI). The API's zone object only carries `state` and `omitted` of these.
-- **Exit and entry delay** (BDA 8.13): 40 s exit delay by default when arming at the keypad; the entry delay gives time to disarm after opening the front door. Through the API the new state was reported immediately. Whether a remote arm skips the delay or the API just doesn't show it is open.
+- **Exit and entry delay** (BDA 8.13): 40 s exit delay by default when arming at the keypad; the entry delay gives time to disarm after opening the front door.
+- **Exit time in practice** (tested on the test panel, delayed arming with 15 s exit time):
+
+  | Armed via | partset | set |
+  |---|---|---|
+  | App or API | immediately | immediately, no exit time |
+  | Keypad | immediately | 15 s of exit tones, then armed |
+
+  While the exit time runs after arming at the keypad, the API keeps reporting `unset` and switches to `set` only when it is over. The API has no "arming" state.
 - **Partition settings** (INST, partitions), separately for full arming, internal arming, disarmed and panic:
   - *Exit mode*: delayed arming (after the exit time, with warning tones), silent arming (same without tones), immediate arming, arming when the last entry/exit door closes (no fixed time), arming by a lock contact at the door, or ending the exit via a dedicated button zone.
   - *Exit time* and *entry time*: 10–120 s each. The test panel uses delayed arming with 15 s exit and 25 s entry time.

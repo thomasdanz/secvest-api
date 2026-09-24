@@ -146,8 +146,9 @@ paths:
       description: >
         Returns the partition with its new state. The change took effect
         immediately (0.1–0.3 s through the proxy), and the next GET already
-        showed the new state; no transitional state such as an exit delay was
-        visible. A pending battery fault (prevents-set false) did not block
+        showed the new state. Arming via the API (and the app) skips the exit
+        time: on the test panel, configured for delayed arming with a 15 s exit
+        time, both partset and set took effect at once. A pending battery fault (prevents-set false) did not block
         arming.
 
 
@@ -165,12 +166,6 @@ paths:
         - Response when arming is blocked by a fault with prevents-set —
           presumably also 200 with the unchanged state.
         - Does arming succeed while a non-omittable entry door is open?
-        - Exit delay — the test panel's partition is configured for delayed
-          arming with a 15 s exit time, yet the API reported `set` within
-          0.3 s, and so did the GETs right after. Does arming via the API skip
-          the exit time (the panel has an "arm immediately" option for remote
-          controls), or does the API report `set` while the exit time is still
-          running?
       requestBody:
         required: true
         content:
@@ -672,7 +667,10 @@ components:
       enum: [unset, partset, set]
       description: >
         unset = disarmed, partset = armed internally (home), set = armed.
-        There is no "alarm" state here, see /alarms/.
+        There is no "alarm" state here, see /alarms/. There is no "arming"
+        state either: while the exit time runs after arming at the keypad, the
+        partition still reports unset and only switches to set when the exit
+        time is over (tested with a 15 s exit time).
 
     System:
       type: object
