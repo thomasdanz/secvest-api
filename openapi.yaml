@@ -908,7 +908,11 @@ components:
         unset_alarm, partset_alarm, alarm and acknowledged, and treats the
         four alarm values as "in alarm". The firmware contains the same
         values spelled with a hyphen (set-alarm, …), so the exact spelling on
-        the wire is still open.
+        the wire is still open. The hyphen is more likely: in the firmware
+        these strings sit right among the REST API's JSON names (partitions,
+        affects-partition, prevents-set, …). A client should accept both
+        spellings and treat any unknown state as a possible alarm. No test
+        alarm is planned, so this stays a hypothesis.
 
 
         State rules the app applies before sending a PUT: set/partset only
