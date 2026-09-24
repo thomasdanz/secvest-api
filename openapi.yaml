@@ -1,11 +1,30 @@
 openapi: 3.1.0
 info:
   title: ABUS Secvest Touch REST API (unofficial)
-  version: 0.0.1
+  version: 0.1.0
   description: >
     Reverse-engineered REST API of the ABUS Secvest Touch (FUAA50500) as used
     by the official app. Every operation carries `x-evidence`
-    (verified | source | assumption), see README.
+    (verified | source | assumption) and, where something is still unknown,
+    `x-open-questions`. Examples point to the redacted responses in
+    `fixtures/`. See the README.
+
+
+    Observations that apply to all endpoints:
+
+    - Responses are `application/json`. Strings are German UI texts as shown
+      on the panel.
+
+    - Ids are strings, even where they look numeric.
+
+    - The panel may put raw control characters into JSON strings (seen in a
+      log user name), so clients have to parse leniently.
+
+    - The iOS app identifies itself as
+      `Secvest/<yyyymmdd> CFNetwork/<version> Darwin/<version>`.
+
+    - The panel's TLS handshake is very slow (several seconds); keep one
+      connection alive and reuse TLS sessions.
 
 servers:
   - url: https://{host}:{port}
@@ -18,12 +37,20 @@ servers:
 security:
   - basicAuth: []
 
+x-open-questions:
+  - The app can omit ("ausblenden") zones before arming; the endpoint for that
+    is not known yet.
+  - Does /logs/ take query parameters (paging, filters)? The plain request
+    returned 600 entries.
+  - Which methods besides the known ones does each resource accept?
+  - Responses for 401 (wrong credentials), 404 (unknown id) and unsupported
+    methods.
+
 paths:
   /system/:
     get:
       summary: System name and partition ids
-      x-evidence: source
-      x-sources: [PySecvest]
+      x-evidence: verified
       responses:
         "200":
           description: OK
@@ -31,12 +58,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/System"
+              examples:
+                default:
+                  externalValue: fixtures/GET_system.json
 
   /system/partitions/:
     get:
       summary: All partitions with state and zone ids
-      x-evidence: source
-      x-sources: [node-red-contrib-secvest, homebridge-secvest, PySecvest]
+      x-evidence: verified
       responses:
         "200":
           description: OK
@@ -46,14 +75,16 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Partition"
+              examples:
+                default:
+                  externalValue: fixtures/GET_system_partitions.json
 
   /system/partitions-{partition}/:
     parameters:
       - $ref: "#/components/parameters/partition"
     get:
       summary: One partition
-      x-evidence: source
-      x-sources: [node-red-contrib-secvest]
+      x-evidence: verified
       responses:
         "200":
           description: OK
@@ -61,13 +92,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Partition"
+              examples:
+                default:
+                  externalValue: fixtures/GET_system_partitions-1.json
     put:
       summary: Arm, arm internally or disarm a partition
       description: >
-        Node-RED flow switches partset <-> set via unset first (1 s delay);
-        whether a direct switch is rejected is unverified.
-      x-evidence: source
+        Used by the app (request verified). According to the user the response
+        includes the resulting state; not captured yet.
+      x-evidence: verified
       x-sources: [node-red-contrib-secvest, homebridge-secvest]
+      x-open-questions:
+        - Exact response body on success.
+        - Response when arming is blocked (e.g. a fault with prevents-set, or a
+          weak battery) — the request currently fails, cause unconfirmed.
+        - Can the state switch directly between partset and set? The
+          Node-RED flow always goes through unset first.
       requestBody:
         required: true
         content:
@@ -78,21 +118,23 @@ paths:
               properties:
                 state:
                   $ref: "#/components/schemas/PartitionState"
+            examples:
+              arm:
+                value: { state: set }
+              armInternally:
+                value: { state: partset }
+              disarm:
+                value: { state: unset }
       responses:
         "200":
-          description: Partition after the change
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Partition"
+          description: Resulting state (format not captured yet)
 
   /system/partitions-{partition}/zones/:
     parameters:
       - $ref: "#/components/parameters/partition"
     get:
       summary: Zones (detectors) of a partition
-      x-evidence: source
-      x-sources: [node-red-contrib-secvest]
+      x-evidence: verified
       responses:
         "200":
           description: OK
@@ -102,41 +144,85 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Zone"
-
-  /output/:
-    get:
-      summary: Outputs
-      x-evidence: source
-      x-sources: [node-red-contrib-secvest]
-      responses:
-        "200":
-          description: OK (format unknown)
-
-  /faults/:
-    get:
-      summary: Faults
-      x-evidence: source
-      x-sources: [node-red-contrib-secvest]
-      responses:
-        "200":
-          description: OK (format unknown)
-
-  /logs/:
-    get:
-      summary: Event log
-      x-evidence: source
-      x-sources: [node-red-contrib-secvest]
-      responses:
-        "200":
-          description: OK (format unknown)
+              examples:
+                default:
+                  externalValue: fixtures/GET_system_partitions-1_zones.json
+                otherStates:
+                  summary: Same zones a few minutes later
+                  externalValue: fixtures/GET_system_partitions-1_zones.example2.json
 
   /alarms/:
     get:
       summary: Active alarms
+      x-evidence: verified
+      x-open-questions:
+        - Format of an entry while an alarm is active. The log knows burglary
+          (with zone), zone tamper, housing/siren tamper and code tamper
+          alarms, which are likely candidates.
+        - Does an entry stay until the alarm is reset, and is there a way to
+          reset or acknowledge it via the API?
+      responses:
+        "200":
+          description: Empty array when no alarm is active
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {}
+              examples:
+                idle:
+                  externalValue: fixtures/GET_alarms.json
+
+  /faults/:
+    get:
+      summary: Current faults (troubles)
+      x-evidence: verified
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Fault"
+              examples:
+                zoneOpenAndBattery:
+                  externalValue: fixtures/GET_faults.json
+                batteryOnly:
+                  externalValue: fixtures/GET_faults.example2.json
+
+  /logs/:
+    get:
+      summary: Event log
       description: >
-        Seen returning `[]` when idle (path prefix not yet confirmed).
-        Format during an active alarm is unknown.
-      x-evidence: assumption
+        Returned 600 entries (looks like the size of the panel's log buffer),
+        not strictly sorted. The fixture is a subset with one entry per
+        message pattern.
+      x-evidence: verified
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LogEntry"
+              examples:
+                subset:
+                  externalValue: fixtures/GET_logs.json
+
+  /outputs/:
+    get:
+      summary: Outputs
+      description: >
+        node-red-contrib-secvest requests `/output/` (singular); the app uses
+        `/outputs/`. `/output/` is untested.
+      x-evidence: verified
+      x-open-questions:
+        - Entry format (no outputs configured on the test panel).
+        - How are outputs switched?
       responses:
         "200":
           description: OK
@@ -145,6 +231,27 @@ paths:
               schema:
                 type: array
                 items: {}
+              examples:
+                none:
+                  externalValue: fixtures/GET_outputs.json
+
+  /cameras/:
+    get:
+      summary: Cameras
+      x-evidence: verified
+      x-open-questions:
+        - Entry format (no cameras configured on the test panel).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {}
+              examples:
+                none:
+                  externalValue: fixtures/GET_cameras.json
 
 components:
   securitySchemes:
@@ -158,7 +265,7 @@ components:
       name: partition
       in: path
       required: true
-      description: Partition id (1-4 according to PySecvest)
+      description: Partition id; the panel reports partitions 1-4.
       schema:
         type: integer
         minimum: 1
@@ -168,9 +275,13 @@ components:
     PartitionState:
       type: string
       enum: [unset, partset, set]
+      description: >
+        unset = disarmed, partset = armed internally (home), set = armed.
+        There is no "alarm" state here, see /alarms/.
 
     System:
       type: object
+      required: [name, partitions]
       properties:
         name:
           type: string
@@ -181,26 +292,112 @@ components:
 
     Partition:
       type: object
+      required: [id, name, state, zones]
       properties:
         id:
-          description: String or integer — PySecvest examples differ
-          type: [string, integer]
+          type: string
         name:
           type: string
+          description: Unused partitions are named "Teilber. <n>" by default.
         state:
           $ref: "#/components/schemas/PartitionState"
         zones:
           type: array
+          description: Ids of the zones assigned to the partition.
           items:
             type: string
 
     Zone:
       type: object
+      required: [id, name, state, inner, omittable, omitted]
       properties:
         id:
-          type: [string, integer]
+          type: string
+          description: Wireless zones are numbered from 201.
         name:
           type: string
         state:
-          description: "`closed` when closed; other values unknown"
+          type: string
+          description: Only open and closed seen so far; tamper or other values
+            may exist.
+          examples: [closed, open]
+        inner:
+          type: boolean
+          description: Meaning not confirmed; true for every zone on the test
+            panel.
+        omittable:
+          type: boolean
+          description: Whether the zone may be omitted (bypassed) for arming.
+            False for entry doors on the test panel.
+        omitted:
+          type: boolean
+          description: Whether the zone is currently omitted.
+
+    Fault:
+      type: object
+      required: [type, id, ui-string, affects-partition, prevents-set, prevents-reset, is-rf-warning]
+      properties:
+        type:
+          type: string
+          description: >
+            Fault class. Seen: 1170 = repeater battery low, 5000 = zone open.
+        id:
+          type: string
+        ui-string:
+          type: string
+          description: Text as shown on the panel, e.g. "REP01 Batt schwach".
+        affects-partition:
+          type: array
+          items:
+            type: string
+        affects-zone:
+          type: string
+          description: Only present for zone-related faults.
+        prevents-set:
+          type: boolean
+          description: Arming is blocked while this fault is present.
+        prevents-reset:
+          type: boolean
+        is-rf-warning:
+          type: boolean
+
+    LogEntry:
+      type: object
+      required: [id, type, desc, events]
+      properties:
+        id:
+          type: string
+          description: >
+            Appears to be (unix timestamp << 8) | sequence number within that
+            second.
+        type:
+          type: string
+          enum: [normal, alarm, trouble]
+        desc:
+          type: string
+          description: >
+            Text as shown on the panel, e.g. "Ben 001 TB 1 aktiv" (user 1 armed
+            partition 1), "Einbruch Z202 Alarm", "REP01 Batt schwach".
+        events:
+          type: array
+          description: Exactly one element in every entry seen so far.
+          items:
+            $ref: "#/components/schemas/LogEvent"
+
+    LogEvent:
+      type: object
+      required: [timestamp]
+      properties:
+        timestamp:
+          type: string
+          description: Unix time in seconds.
+        partition:
+          type: string
+          description: '"0" in every entry seen so far.'
+        user:
+          type: string
+          description: User slot ("0" = installer).
+        username:
+          type: string
+        zone:
           type: string

@@ -11,7 +11,7 @@ Not in scope: the API behind the panel's web interface (`sec_*.cgi`, `*.cgx`), w
 | Path | Content |
 |---|---|
 | `openapi.yaml` | The specification; grows with every finding |
-| `fixtures/` | Redacted example responses, named after method and path |
+| `fixtures/` | Redacted example responses, named after method and path (`GET_system_partitions-1_zones.json`); further examples of the same request get `.example2`, `.example3`, … |
 | `scripts/redact.py` | Redacts raw captures and checks fixtures before a commit |
 | `captures/` | Raw captures, **not versioned** |
 
@@ -23,11 +23,13 @@ Every operation carries `x-evidence`, and `x-sources` where it comes from third-
 - `source` — taken from third-party code or docs ([node-red-contrib-secvest](https://github.com/yreiser/node-red-contrib-secvest), [homebridge-secvest](https://github.com/chris1705/homebridge-secvest), [PySecvest](https://github.com/chris1705/PySecvest)), not checked yet
 - `assumption` — educated guess
 
+What is still unknown is listed in `x-open-questions`, on the operation it belongs to or at the top of the spec.
+
 ## Redaction
 
 Nothing that identifies an installation goes into git: host names, IP and MAC addresses, serial numbers, user codes, phone numbers, SIP accounts, zone or user names.
 
-1. Copy `redact.example.json` to `redact.local.json` (gitignored) and list the installation-specific strings with neutral placeholders.
+1. Copy `redact.example.json` to `redact.local.json` (gitignored) and list the installation-specific strings with neutral placeholders. Keep the mapping fixed (e.g. always the same room number for the same room), so fixtures stay comparable.
 2. Keep raw responses in `captures/`, then redact them into `fixtures/`:
    ```bash
    scripts/redact.py captures/GET_system_partitions.json fixtures/GET_system_partitions.json

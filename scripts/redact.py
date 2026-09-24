@@ -19,10 +19,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 LOCAL_RULES = ROOT / "redact.local.json"
 
-# matched against the parts of a key: "serialNumber", "sip_user", "ip-addr"
+# matched against the parts of a key: "serialNumber", "sip_username", "ip-addr";
+# plain "user" is left alone, the Secvest uses it for numeric user slots
 SENSITIVE_KEY_PARTS = {
     "serial", "sn", "mac", "imei", "iccid", "imsi", "pin", "code", "pass",
-    "password", "passwd", "user", "username", "phone", "tel", "sip", "email",
+    "password", "passwd", "username", "phone", "tel", "sip", "email",
     "mail", "token", "ssid", "secret", "ip", "host", "hostname", "addr", "address",
 }
 PATTERNS = [
@@ -72,7 +73,8 @@ def redact_json(value, replacements, key=None):
 def redact_file(path, replacements):
     raw = Path(path).read_text(encoding="utf-8")
     try:
-        data = json.loads(raw)
+        # the panel sometimes emits raw control characters inside strings
+        data = json.loads(raw, strict=False)
     except json.JSONDecodeError:
         return redact_text(raw, replacements)
     return json.dumps(redact_json(data, replacements), indent=2, ensure_ascii=False) + "\n"
