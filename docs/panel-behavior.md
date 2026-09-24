@@ -72,6 +72,7 @@ Background from the official manuals that explains what the API shows. Paraphras
   3. Reset the panel ("rücksetzen").
 
   Only then can the panel be armed again. If the reset is skipped, it is requested again at the next arming.
+- **Via the app**, an alarm is acknowledged by setting the partition state to `acknowledged` (Android app, not tried). The app has no call for the reset.
 - **Who may reset** is configured by the installer (INST, "Benutzer Rückstellung"), separately for zone alarms, zone tamper and system tamper. If the user may not, the installer has to reset. Tamper alarms often need the installer. `prevents-reset` in `/faults/` presumably marks faults that block the reset.
 - **Remote control by phone** (BDA 11.4) has commands for disarm, arm, arm internally, silence sirens, **reset**, status query and switching outputs by their 3-digit number. The API may offer equivalents.
 - **Alarm transmission** (BDA 9.2): phone call (analogue or VoIP), alarm receiving centre, e-mail with the alarm text, SMS, push to the app. A phone alarm call is acknowledged with DTMF 5 (end this call, continue the chain) or 9 (stop the whole call chain).

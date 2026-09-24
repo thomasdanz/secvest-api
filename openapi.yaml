@@ -69,6 +69,15 @@ info:
     - Background on zones, arming, alarms and resetting from the ABUS manuals
       is collected in docs/panel-behavior.md.
 
+    - The Android app (2.6.6) defines exactly these calls in its API
+      interface: GET /system/, /system/partitions/, /system/partitions-{n}/zones/,
+      /alarms/, /faults/, /logs/, /outputs/, /cameras/ and /{imagePath};
+      PUT /system/partitions-{n}/, /system/partitions-{n}/zones-{zone}/,
+      /outputs-{id}/ and /register/. There is no separate call to
+      acknowledge or reset an alarm; acknowledging is a partition state (see
+      PartitionState). Findings from the app are marked with
+      `x-sources: [android-app]`.
+
     - The panel's TLS handshake is very slow (several seconds); keep one
       connection alive and reuse TLS sessions. How the app uses the API is
       described in docs/app-behavior.md.
@@ -87,7 +96,8 @@ security:
 x-open-questions:
   - What is the `device` header for? It has the size of an APNs token (64 hex
     characters) but stays all `f` even while the app sends the real token in
-    PUT /register/, so it isn't the push token.
+    PUT /register/, so it isn't the push token. The Android app's API code
+    doesn't set it, so it is probably specific to the iOS app.
   - The firmware's name table contains "partsets" next to the known resources
     and field names. GET /system/partsets/ and GET /partsets/ both give 404,
     so it is probably a field name rather than a resource. Where is it used?
@@ -228,6 +238,9 @@ paths:
                 externalValue: fixtures/PUT_system_partitions-1.example2.request.json
               arm:
                 externalValue: fixtures/PUT_system_partitions-1.example3.request.json
+              acknowledgeAlarm:
+                summary: Acknowledge an alarm (from the Android app, not tried)
+                value: { state: acknowledged }
               armInternallyWhileArmed:
                 externalValue: fixtures/PUT_system_partitions-1.example4.request.json
               armWhileArmedInternally:
@@ -494,8 +507,9 @@ paths:
       x-open-questions:
         - Response status and body — in both captured calls the connection was
           closed after 1-2 s without a response, yet the device was
-          registered. Does the app not wait, or does the panel answer slowly
-          (e.g. because it contacts a push service)?
+          registered. The Android app reads the raw response and knows the
+          outcomes OK, NOT_FOUND and Unauthorized (presumably from the HTTP
+          status).
         - How is a registration removed or updated from the app side, if at
           all?
         - Values of `platform` besides `ios` (presumably `android`).
@@ -540,17 +554,12 @@ paths:
       summary: Active alarms
       x-evidence: verified
       x-open-questions:
-        - Format of an entry while an alarm is active. The user manual lists
-          tamper, intrusion, panic, technical, fire, care/medical and exceeded
-          entry/exit delay alarms; the log shows intrusion (with zone), zone
-          tamper, housing/siren tamper and code tamper alarms.
-        - Does an entry stay until the alarm is reset, and is there a way to
-          acknowledge and reset it via the API? According to the user
-          manual, after an alarm the panel has to be disarmed, then the alarm
-          acknowledged ("quittieren") and finally the panel reset
-          ("rücksetzen") before it is operational again; the web interface
-          offers both steps, so the app probably does too. Faults carry a
-          matching `prevents-reset` flag.
+        - The entry format comes from the Android app (see Alarm); an actual
+          response during an alarm hasn't been seen yet.
+        - Does an entry stay until the alarm is acknowledged or reset? The app
+          acknowledges via PUT /system/partitions-{n}/ with state
+          acknowledged; it has no call for the reset ("rücksetzen") the
+          manual describes — that may happen implicitly or only at the keypad.
         - Not part of the API, but useful for event-driven clients — the panel
           can send an e-mail with the alarm text (e.g. "Einbruch Z01 Alarm")
           when an alarm occurs (user manual, alarm transmission via e-mail).
@@ -565,7 +574,8 @@ paths:
             application/json:
               schema:
                 type: array
-                items: {}
+                items:
+                  $ref: "#/components/schemas/Alarm"
               examples:
                 idle:
                   externalValue: fixtures/GET_alarms.json
@@ -704,8 +714,8 @@ paths:
         `/outputs/`. `/output/` is untested.
       x-evidence: verified
       x-open-questions:
-        - Entry format (no outputs configured on the test panel).
-        - How are outputs switched?
+        - No outputs are configured on the test panel; the entry format is
+          taken from the Android app (see Output).
       responses:
         "200":
           description: OK
@@ -713,10 +723,48 @@ paths:
             application/json:
               schema:
                 type: array
-                items: {}
+                items:
+                  $ref: "#/components/schemas/Output"
               examples:
                 none:
                   externalValue: fixtures/GET_outputs.json
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
+
+  /outputs-{output}/:
+    parameters:
+      - name: output
+        in: path
+        required: true
+        schema:
+          type: integer
+    put:
+      summary: Switch an output on or off
+      description: >
+        Taken from the Android app; not tried (the test panel has no
+        user-switchable outputs). Returns the output after the change.
+      x-evidence: source
+      x-sources: [android-app]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state:
+                  type: string
+                  enum: ["on", "off"]
+      responses:
+        "200":
+          description: The output after the change
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Output"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -727,7 +775,8 @@ paths:
       summary: Cameras
       x-evidence: verified
       x-open-questions:
-        - Entry format (no cameras configured on the test panel).
+        - No cameras are configured on the test panel; the entry format is
+          taken from the Android app (see Camera).
       responses:
         "200":
           description: OK
@@ -735,7 +784,8 @@ paths:
             application/json:
               schema:
                 type: array
-                items: {}
+                items:
+                  $ref: "#/components/schemas/Camera"
               examples:
                 none:
                   externalValue: fixtures/GET_cameras.json
@@ -847,16 +897,102 @@ components:
     PartitionState:
       type: string
       enum: [unset, partset, set]
-      x-enum-from-firmware: [unset-alarm, set-alarm, partset-alarm, acknowledged]
+      x-enum-not-observed: [unset-alarm, set-alarm, partset-alarm, alarm, acknowledged]
+      x-sources: [firmware, android-app]
       description: >
-        unset = disarmed, partset = armed internally (home), set = armed.
-        The panel firmware also contains the values unset-alarm, set-alarm,
-        partset-alarm and acknowledged next to them, which suggests the
-        partition reports an alarm in its state and "acknowledged" after the
-        alarm has been acknowledged (source: firmware strings, not observed). There is no "arming"
+        unset = disarmed, partset = armed internally (home), set = armed —
+        the only values observed so far.
+
+
+        Alarm states (not observed yet): the Android app knows set_alarm,
+        unset_alarm, partset_alarm, alarm and acknowledged, and treats the
+        four alarm values as "in alarm". The firmware contains the same
+        values spelled with a hyphen (set-alarm, …), so the exact spelling on
+        the wire is still open.
+
+
+        State rules the app applies before sending a PUT: set/partset only
+        from unset and not in alarm; unset only from set/partset or from
+        acknowledged; acknowledged only while in alarm. So an alarm is
+        acknowledged with PUT {"state":"acknowledged"}, after which the
+        partition can be disarmed. There is no "arming"
         state either: while the exit time runs after arming at the keypad, the
         partition still reports unset and only switches to set when the exit
         time is over (tested with a 15 s exit time).
+
+    Alarm:
+      type: object
+      x-evidence: source
+      x-sources: [android-app]
+      description: >
+        One active alarm, as the Android app parses it. Not observed yet.
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          description: >
+            Alarm class as a numeric string: "0" undefined, "1" faults,
+            "2" technical, "3" fire, "4" burglary, "6" medical, "7" panic,
+            "8" social, "9" inactivity ("5" is not defined in the app).
+        affects-partition:
+          type: integer
+          description: A single partition id here, unlike the list in Fault.
+
+    Output:
+      type: object
+      x-evidence: source
+      x-sources: [android-app]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        state:
+          type: string
+          enum: ["on", "off"]
+        manual:
+          type: boolean
+          description: Presumably whether the user may switch it.
+        interval:
+          type: integer
+        timed:
+          description: Type unknown.
+
+    Camera:
+      type: object
+      x-evidence: source
+      x-sources: [android-app]
+      description: >
+        IP camera connected to the panel. Note that the app model contains
+        the camera's password, i.e. the panel hands it out to the app.
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        partitions:
+          type: array
+          items:
+            type: integer
+        intern-ip:
+          type: string
+        http-port:
+          type: integer
+        https-port:
+          type: integer
+        https-enabled:
+          type: boolean
+        rtsp-port:
+          type: integer
+        extern-http-port:
+          type: integer
+        extern-https-port:
+          type: integer
+        extern-rtsp-port:
+          type: integer
+        password:
+          type: string
 
     System:
       type: object
@@ -1003,3 +1139,11 @@ components:
           type: string
         zone:
           type: string
+        images:
+          type: array
+          x-sources: [android-app]
+          description: >
+            Paths of camera images belonging to the event (from the Android
+            app, not observed); the app loads them with GET /{imagePath}.
+          items:
+            type: string

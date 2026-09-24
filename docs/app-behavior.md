@@ -91,3 +91,20 @@ While the installer ("Errichter") is logged in at the panel's own keypad, the AP
 ## Timing
 
 Through the proxy, which keeps TLS sessions to the panel alive, most responses took **0.04–0.12 s**. When the app sent four or more requests at once, the extra ones took about **3.4 s**, which is presumably a new TLS handshake from the proxy to the panel. The first log request took **6.1 s**. A client should keep its requests sequential, or at least avoid bursts.
+
+## Android app (static analysis)
+
+Findings from reading the Android app 2.6.6 (`de.abussc.secvest2`), not from traffic. Only the interface facts are recorded here, no code.
+
+- **Calls:** The API interface has exactly the calls listed in the spec's introduction. There is no separate call to acknowledge or reset an alarm, and none to fetch a single partition or zone.
+- **Acknowledging an alarm:** The alarm screen acknowledges with `PUT /system/partitions-{n}/` and `{"state":"acknowledged"}`.
+- **Before sending a state change**, the app checks the current state:
+  - set/partset only from unset, and not during an alarm
+  - unset only from set/partset or from acknowledged
+  - acknowledged only during an alarm
+
+  So after an alarm the order in the app is: acknowledge, then disarm.
+- **Updates:** The app waits 14 s between update rounds (alarms, faults, partitions, zones and so on). Together with the request time that matches the roughly 24 s cycle seen from the iOS app.
+- **`device` header:** The Android app's API code doesn't set the header seen from the iOS app.
+- **Outputs** are switched with `PUT /outputs-{id}/` and `{"state":"on"|"off"}`. **Camera images** of log events are loaded from the paths in an event's `images` list.
+
