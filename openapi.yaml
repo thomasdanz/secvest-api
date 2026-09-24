@@ -522,6 +522,10 @@ paths:
         - Not part of the API, but useful for event-driven clients — the panel
           can send an e-mail with the alarm text (e.g. "Einbruch Z01 Alarm")
           when an alarm occurs (user manual, alarm transmission via e-mail).
+      description: >
+        Stays empty during an entry time (checked), i.e. an entry delay is not
+        an alarm yet. The partition keeps reporting set/partset meanwhile; only
+        the log shows that an entry time is running.
       responses:
         "200":
           description: Empty array when no alarm is active
