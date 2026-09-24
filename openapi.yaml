@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ABUS Secvest Touch REST API (unofficial)
-  version: 0.1.0
+  version: 0.2.0
   description: >
     Reverse-engineered REST API of the ABUS Secvest Touch (FUAA50500) as used
     by the official app. Every operation carries `x-evidence`
@@ -21,10 +21,18 @@ info:
       log user name), so clients have to parse leniently.
 
     - The iOS app identifies itself as
-      `Secvest/<yyyymmdd> CFNetwork/<version> Darwin/<version>`.
+      `Secvest/<yyyymmdd> CFNetwork/<version> Darwin/<version>` and sends
+      `Accept: application/json`, `Content-Type: application/json` (also on
+      GET) and a `device` header with 64 hex characters (all `f` on the test
+      device).
+
+    - Responses are pretty-printed with CRLF line endings and sent chunked,
+      with `Cache-Control: no-cache, no-store, max-age=0` and
+      `Access-Control-Allow-Origin: *`.
 
     - The panel's TLS handshake is very slow (several seconds); keep one
-      connection alive and reuse TLS sessions.
+      connection alive and reuse TLS sessions. How the app uses the API is
+      described in docs/app-behavior.md.
 
 servers:
   - url: https://{host}:{port}
@@ -38,11 +46,10 @@ security:
   - basicAuth: []
 
 x-open-questions:
-  - The app can omit ("ausblenden") zones before arming; the endpoint for that
-    is not known yet.
-  - Does /logs/ take query parameters (paging, filters)? The plain request
-    returned 600 entries.
-  - Which methods besides the known ones does each resource accept?
+  - What is the `device` header for? 64 hex characters look like an APNs push
+    token; the test device sends all `f`.
+  - Which methods besides the known ones does each resource accept? Is there
+    a GET on a single zone (/system/partitions-{n}/zones-{zone}/)?
   - Responses for 401 (wrong credentials), 404 (unknown id) and unsupported
     methods.
 
@@ -150,6 +157,59 @@ paths:
                 otherStates:
                   summary: Same zones a few minutes later
                   externalValue: fixtures/GET_system_partitions-1_zones.example2.json
+                emptyPartition:
+                  summary: Partition without zones (partition 2)
+                  externalValue: fixtures/GET_system_partitions-2_zones.json
+
+  /system/partitions-{partition}/zones-{zone}/:
+    parameters:
+      - $ref: "#/components/parameters/partition"
+      - name: zone
+        in: path
+        required: true
+        description: Zone id, e.g. 209.
+        schema:
+          type: string
+    put:
+      summary: Omit (bypass) a zone or include it again
+      description: >
+        Used by the app's "Zone ausblenden" dialog for an open zone. Omitting
+        an open zone removes its zone-open fault (prevents-set), so the
+        partition can be armed. Note that `omitted` is sent as a string.
+      x-evidence: verified
+      x-open-questions:
+        - Response for a zone with omittable=false.
+        - Is the omission reset automatically on disarm, and is it logged?
+          The log request right after omitting returned no new entry.
+        - Does the resource accept other fields?
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [omitted]
+              properties:
+                omitted:
+                  type: string
+                  enum: ["true", "false"]
+            examples:
+              omit:
+                externalValue: fixtures/PUT_system_partitions-1_zones-209.request.json
+              include:
+                externalValue: fixtures/PUT_system_partitions-1_zones-209.example2.request.json
+      responses:
+        "200":
+          description: The zone after the change
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Zone"
+              examples:
+                omitted:
+                  externalValue: fixtures/PUT_system_partitions-1_zones-209.json
+                included:
+                  externalValue: fixtures/PUT_system_partitions-1_zones-209.example2.json
 
   /alarms/:
     get:
@@ -191,15 +251,38 @@ paths:
                   externalValue: fixtures/GET_faults.json
                 batteryOnly:
                   externalValue: fixtures/GET_faults.example2.json
+                otherZoneOpen:
+                  externalValue: fixtures/GET_faults.example3.json
 
   /logs/:
     get:
       summary: Event log
       description: >
-        Returned 600 entries (looks like the size of the panel's log buffer),
-        not strictly sorted. The fixture is a subset with one entry per
-        message pattern.
+        Without a filter the panel returned 600 entries, not strictly sorted.
+        The fixture is a subset with one entry per message pattern. The app
+        only ever asks for entries newer than the newest one it already has,
+        using an OData-style `$filter`.
       x-evidence: verified
+      x-open-questions:
+        - The unfiltered response is not the whole log. The app shows entries
+          that are missing from it (restore events such as "RF Jamming OK" or
+          "SG Sabo ok", zone battery warnings, "TB n rückgesetzt"). How does
+          the app get the full log — other filters, paging?
+        - Which other `$filter` operators and fields work? Are `$top`,
+          `$skip` or `$orderby` supported?
+      parameters:
+        - name: $filter
+          in: query
+          required: false
+          description: >
+            OData-style filter. Seen: `timestamp ge <unix seconds>` (the app
+            uses the newest known timestamp + 1). Returns `[]` when nothing
+            matches.
+          schema:
+            type: string
+          examples:
+            newerThan:
+              value: timestamp ge 1789473729
       responses:
         "200":
           description: OK
@@ -212,6 +295,9 @@ paths:
               examples:
                 subset:
                   externalValue: fixtures/GET_logs.json
+                filteredNothingNew:
+                  summary: $filter=timestamp ge <newest known + 1>
+                  externalValue: fixtures/GET_logs_filter-timestamp-ge.json
 
   /outputs/:
     get:
@@ -343,6 +429,10 @@ components:
             Fault class. Seen: 1170 = repeater battery low, 5000 = zone open.
         id:
           type: string
+          description: >
+            For zone-open faults it has always been 1305 + zone id so far
+            (1514 for zone 209, 1517 for zone 212) — an observation, not
+            confirmed.
         ui-string:
           type: string
           description: Text as shown on the panel, e.g. "REP01 Batt schwach".
