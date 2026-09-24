@@ -13,6 +13,7 @@ Not in scope: the API behind the panel's web interface (`sec_*.cgi`, `*.cgx`), w
 | `openapi.yaml` | The specification; grows with every finding |
 | `fixtures/` | Redacted example responses, named after method and path (`GET_system_partitions-1_zones.json`); further examples of the same request get `.example2`, `.example3`, …; request bodies end in `.request.json`, error responses carry the status code (`GET_system.403.json`) |
 | `docs/app-behavior.md` | How the official app uses the API (screens, polling, timing) |
+| `docs/panel-behavior.md` | Background from the ABUS manuals: zone types, arming, alarms, reset |
 | `scripts/redact.py` | Redacts raw captures and checks fixtures before a commit |
 | `captures/` | Raw captures, **not versioned** |
 

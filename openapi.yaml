@@ -45,6 +45,9 @@ info:
       Unknown keys in a PUT body are silently ignored (`200`, nothing
       changes).
 
+    - Background on zones, arming, alarms and resetting from the ABUS manuals
+      is collected in docs/panel-behavior.md.
+
     - The panel's TLS handshake is very slow (several seconds); keep one
       connection alive and reuse TLS sessions. How the app uses the API is
       described in docs/app-behavior.md.
@@ -62,11 +65,15 @@ security:
 
 x-open-questions:
   - What is the `device` header for? 64 hex characters are exactly the size of
-    an APNs device token (32 bytes), and the app does receive push
-    notifications, so the panel may learn the token from this header. The
-    test device sends all `f`, though — a placeholder, or is the token
+    an APNs device token (32 bytes). According to the app guide, push has to
+    be enabled per device by an administrator in the web interface, so the
+    panel keeps a list of app devices — probably learnt from this header.
+    The test device sends all `f`, though — a placeholder, or is the token
     registered some other way (e.g. once when the system is added in the
     app)?
+  - The app guide says the app can't connect while an installer or a user is
+    logged in at the panel. The installer gives 403 {"state":"installer"};
+    does a logged-in user give a different state?
   - Which methods besides the known ones does each resource accept?
   - Responses for an unknown partition (e.g. partitions-9) and for
     unsupported methods. An unknown path or zone gives 404.
@@ -253,12 +260,7 @@ paths:
   /system/partitions-{partition}/zones-{zone}/:
     parameters:
       - $ref: "#/components/parameters/partition"
-      - name: zone
-        in: path
-        required: true
-        description: Zone id, e.g. 209.
-        schema:
-          type: string
+      - $ref: "#/components/parameters/zone"
     get:
       summary: One zone
       description: Returns the same object as one element of the zone list.
@@ -302,8 +304,10 @@ paths:
         with the requested value.
       x-evidence: verified
       x-open-questions:
-        - Is the omission reset automatically on disarm, and is it logged?
-          The log request right after omitting returned no new entry.
+        - According to the user manual an omitted zone is included again
+          automatically at the next disarm. Not verified via the API yet. Is
+          the omission logged? The log request right after omitting returned
+          no new entry.
       requestBody:
         required: true
         content:
@@ -390,11 +394,20 @@ paths:
       summary: Active alarms
       x-evidence: verified
       x-open-questions:
-        - Format of an entry while an alarm is active. The log knows burglary
-          (with zone), zone tamper, housing/siren tamper and code tamper
-          alarms, which are likely candidates.
+        - Format of an entry while an alarm is active. The user manual lists
+          tamper, intrusion, panic, technical, fire, care/medical and exceeded
+          entry/exit delay alarms; the log shows intrusion (with zone), zone
+          tamper, housing/siren tamper and code tamper alarms.
         - Does an entry stay until the alarm is reset, and is there a way to
-          reset or acknowledge it via the API?
+          acknowledge and reset it via the API? According to the user
+          manual, after an alarm the panel has to be disarmed, then the alarm
+          acknowledged ("quittieren") and finally the panel reset
+          ("rücksetzen") before it is operational again; the web interface
+          offers both steps, so the app probably does too. Faults carry a
+          matching `prevents-reset` flag.
+        - Not part of the API, but useful for event-driven clients — the panel
+          can send an e-mail with the alarm text (e.g. "Einbruch Z01 Alarm")
+          when an alarm occurs (user manual, alarm transmission via e-mail).
       responses:
         "200":
           description: Empty array when no alarm is active
@@ -422,9 +435,11 @@ paths:
         blocked from the faults.
       x-evidence: verified
       x-open-questions:
-        - Why do non-omittable open zones produce no fault? Presumably they are
-          entry/exit route zones with a delay, which may be open while arming.
-          Does arming actually succeed with such a door open?
+        - Why do non-omittable open zones produce no fault? According to the
+          user manual, open intrusion zones prevent arming except entry-route
+          zones, and entry/exit zones may be open while leaving, so the doors
+          are presumably of that type (omittable is a separate installer
+          setting). Does arming actually succeed with such a door open?
       responses:
         "200":
           description: OK
@@ -456,7 +471,8 @@ paths:
     get:
       summary: Event log
       description: >
-        Without a filter the panel returned 600 entries, not strictly sorted.
+        Without a filter the panel returned 600 entries, not strictly sorted;
+        600 is the documented log capacity (oldest entries are overwritten).
         The fixture is a subset with one entry per message pattern. The app
         only ever asks for entries newer than the newest one it already has,
         using an OData-style `$filter`.
@@ -622,11 +638,31 @@ components:
       name: partition
       in: path
       required: true
-      description: Partition id; the panel reports partitions 1-4.
+      description: >
+        Partition id, without leading zeros (`partitions-1`). The panel
+        reports partitions 1-4.
       schema:
         type: integer
         minimum: 1
         maximum: 4
+      example: 1
+
+    zone:
+      name: zone
+      in: path
+      required: true
+      description: >
+        Zone id as listed in the partition's `zones` (`zones-209`). All ids
+        seen so far have three digits. According to the user manual, the 48
+        wireless zones are Z201 onwards and the wired zones Z301-Z304; with
+        4-wire wiring the manual labels them Z301A/Z301T and Z302A/Z302T
+        (alarm/tamper), and it is unknown how the API represents those. The
+        numbering of the IP (camera) zones isn't documented. The test panel
+        only has wireless zones.
+      schema:
+        type: string
+        pattern: "^[0-9]{3}$"
+      example: "209"
 
   schemas:
     PartitionState:
@@ -670,7 +706,8 @@ components:
       properties:
         id:
           type: string
-          description: Wireless zones are numbered from 201.
+          description: Wireless zones are numbered from 201, wired zones from 301
+            (user manual).
         name:
           type: string
         state:
@@ -680,13 +717,15 @@ components:
           examples: [closed, open]
         inner:
           type: boolean
-          description: Meaning not confirmed; true for every zone on the test
-            panel.
+          description: Most likely the zone property "Intern überwacht" —
+            the zone is monitored when armed internally (partset). Not
+            confirmed; true for every zone on the test panel. See
+            docs/panel-behavior.md.
         omittable:
           type: boolean
-          description: Whether the zone may be omitted (bypassed) for arming.
-            False for the entry doors on the test panel; such zones produce no
-            fault in /faults/ when open.
+          description: Whether the zone may be omitted (bypassed) for arming —
+            most likely the zone property "Ausblendbar" set by the installer.
+            False for the entry doors on the test panel.
         omitted:
           type: boolean
           description: Whether the zone is currently omitted.
@@ -723,6 +762,9 @@ components:
             the zone removes a zone-open fault.
         prevents-reset:
           type: boolean
+          description: Presumably blocks resetting the panel after an alarm
+            (see /alarms/); never true so far. Which alarms the user may reset
+            is an installer setting.
         is-rf-warning:
           type: boolean
 
