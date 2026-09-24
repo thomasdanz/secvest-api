@@ -52,7 +52,13 @@ info:
       partition 1, /system/partition-1/zone-209/ zone 209, /f/ the faults
       and /l/ the log. A segment that is longer than the name (zonesx,
       zoness-209) or doesn't match (x) gives 404. That is also why third-party clients
-      using the singular "partition-1" and "zone" work. The paths in this
+      using the singular "partition-1" and "zone" work. Using this, all
+      single letters at the root were probed: apart from the known
+      resources (a, c, f, l, o, r, s) every letter gives 404, so there is no
+      further top-level resource — except possibly one sharing its first
+      letter with a known one. The same probe under /system/ found nothing
+      besides partitions, and under /system/partitions-1/ nothing besides
+      zones. The paths in this
       spec are the ones the app uses.
 
     - An unknown path, partition or zone gets `404`, an invalid value in a PUT body
