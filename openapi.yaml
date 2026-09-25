@@ -427,12 +427,13 @@ paths:
         gives 403 with an empty body, an unknown zone gives 404. Because an
         ignored request still answers 200, compare the returned `omitted`
         with the requested value.
+
+
+        Logging: setting the omission itself is not logged. The log shows
+        "Ben<user> Zone<id> ausgeblendet" when the partition is armed with the
+        zone omitted, and "Ben053 Zone<id> ausgeblendet ok" when it is
+        included again at disarm.
       x-evidence: verified
-      x-open-questions:
-        - (answered) The omission itself is not logged when it is set. The log
-          shows "Ben<user> Zone<id> ausgeblendet" when the partition is armed
-          with the zone omitted, and "Ben053 Zone<id> ausgeblendet ok" when it
-          is included again at disarm.
       requestBody:
         required: true
         content:
