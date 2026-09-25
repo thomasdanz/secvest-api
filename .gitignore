@@ -10,3 +10,7 @@ captures/
 *.har
 
 __pycache__/
+
+# Ghidra reverse-engineering project (local only, derived firmware)
+ghidra/
+.DS_Store
