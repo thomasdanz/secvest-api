@@ -4,7 +4,7 @@ Background from the official manuals that explains what the API shows. Paraphras
 
 ## Zones
 
-- **Numbering** (BDA, technical data): up to 48 wireless zones (Z201 onwards) and up to 4 wired zones on the panel (Z301–Z304; with 4-wire wiring Z301A/Z301T and Z302A/Z302T for alarm and tamper). There are also up to 6 IP (camera) zones and HyMo zones, whose numbering isn't documented.
+- **Numbering** (BDA, technical data): up to 48 wireless zones (Z201 onwards) and up to 4 wired zones on the panel (Z301–Z304; with 4-wire wiring Z301A/Z301T and Z302A/Z302T for alarm and tamper). There are also up to 6 IP (camera) zones, Z101–Z106 (seen in the installer web interface), and HyMo zones, whose numbering isn't documented.
 - **Zone type** is set by the installer. The relevant ones here:
   - *Ein/Ausgang* (entry/exit): alarms only after the entry delay; closing it can end the exit delay. Typical for the front door.
   - *Eingangsweg* (entry route): no alarm while an entry delay is running, otherwise immediate alarm.

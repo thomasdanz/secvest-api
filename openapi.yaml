@@ -2,12 +2,19 @@ openapi: 3.1.0
 info:
   title: ABUS Secvest Touch REST API (unofficial)
   version: 0.2.0
+  x-tested-firmware: v3.01.31
   license:
     name: MIT
     identifier: MIT
   description: >
     Reverse-engineered REST API of the ABUS Secvest Touch (FUAA50500) as used
-    by the official app. Every operation carries `x-evidence`
+    by the official app.
+
+
+    **Verified against firmware v3.01.31** (language pack German v1.47).
+    Other firmware versions are untested; the API itself doesn't report the
+    firmware version (it is only shown at the keypad and in the web
+    interface under Info). Every operation carries `x-evidence`
     (verified | source | assumption) and, where something is still unknown,
     `x-open-questions`. Examples point to the redacted responses in
     `fixtures/`. See the README.
@@ -81,8 +88,14 @@ info:
       PartitionState). Findings from the app are marked with
       `x-sources: [android-app]`.
 
-    - The panel's TLS handshake is very slow (several seconds); keep one
-      connection alive and reuse TLS sessions. How the app uses the API is
+    - Connection behaviour, measured directly against a panel (no proxy):
+      TLS 1.2 with ECDHE-RSA-CHACHA20-POLY1305; a full handshake takes about
+      6.5 s. The panel supports HTTP keep-alive but closes an idle connection
+      after somewhere between 10 and 30 s. It issues TLS session tickets
+      (lifetime 24 h); a new connection that resumes the session completes
+      the handshake in about 13 ms. Clients that don't send requests more
+      often than every few seconds therefore need TLS session resumption, not
+      just keep-alive. How the app uses the API is
       described in docs/app-behavior.md.
 
 servers:
@@ -894,11 +907,13 @@ components:
       description: >
         Zone id as listed in the partition's `zones` (`zones-209`). All ids
         seen so far have three digits. According to the user manual, the 48
-        wireless zones are Z201 onwards and the wired zones Z301-Z304; with
+        wireless zones are Z201 onwards and the wired zones Z301-Z304 (the
+        installer web interface of the test panel lists Z301-Z304 as unused
+        wired zones); with
         4-wire wiring the manual labels them Z301A/Z301T and Z302A/Z302T
-        (alarm/tamper), and it is unknown how the API represents those. The
-        numbering of the IP (camera) zones isn't documented. The test panel
-        only has wireless zones.
+        (alarm/tamper), and it is unknown how the API represents those. The IP
+        (camera) zones are Z101-Z106 (installer web interface). The test
+        panel only uses wireless zones.
       schema:
         type: string
         pattern: "^[0-9]{3}$"
@@ -1043,8 +1058,9 @@ components:
       properties:
         id:
           type: string
-          description: Wireless zones are numbered from 201, wired zones from 301
-            (user manual).
+          description: IP (camera) zones are numbered from 101, wireless zones
+            from 201, wired zones from 301 (user manual and installer web
+            interface).
         name:
           type: string
         state:

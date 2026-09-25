@@ -4,6 +4,8 @@ Reverse-engineered documentation of the REST API that the official app uses to t
 
 Only facts about the interface are recorded — no firmware, app binaries or decompiled code are part of this repository.
 
+Tested with a Secvest Touch FUAA50500 running firmware **v3.01.31**. Other firmware versions are untested; please report differences.
+
 Not in scope: the API behind the panel's web interface (`sec_*.cgi`, `*.cgx`), which is a different interface.
 
 > **Disclaimer:** This is an unofficial community project, not affiliated with or endorsed by ABUS. The panel is security equipment — use this at your own risk, never load-test it, and be careful with anything that arms, disarms or switches outputs.
