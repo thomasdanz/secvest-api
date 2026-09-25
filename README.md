@@ -43,4 +43,8 @@ Nothing that identifies an installation goes into git: host names, IP and MAC ad
    scripts/redact.py --check fixtures openapi.yaml
    ```
 
-Built-in rules replace IPv4, MAC and e-mail addresses and blank out values of sensitive-looking JSON keys (`serial`, `code`, `pin`, `user`, `phone`, `sip`, …). Always review a fixture by eye as well — the rules can't know every field.
+Built-in rules replace IPv4, MAC and e-mail addresses and blank out values of sensitive-looking JSON keys (`serial`, `code`, `pin`, `username`, `phone`, `sip`, …). Always review a fixture by eye as well — the rules can't know every field.
+
+## License
+
+[MIT](LICENSE)
