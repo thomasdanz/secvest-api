@@ -1173,6 +1173,10 @@ components:
         type:
           type: string
           enum: [normal, alarm, trouble]
+          description: >
+            Confirmed by the firmware's log serializer; "alarm" is emitted for
+            alarm-category events, "trouble" for fault-category events, else
+            "normal".
         desc:
           type: string
           description: >
@@ -1187,6 +1191,9 @@ components:
     LogEvent:
       type: object
       required: [timestamp]
+      description: >
+        The firmware's log serializer emits timestamp always, and partition,
+        zone, user/username and images only when they apply to the event.
       properties:
         timestamp:
           type: string
@@ -1212,9 +1219,10 @@ components:
           type: string
         images:
           type: array
-          x-sources: [android-app]
+          x-sources: [android-app, firmware]
           description: >
-            Paths of camera images belonging to the event (from the Android
-            app, not observed); the app loads them with GET /{imagePath}.
+            Paths of camera images belonging to the event; the app loads them
+            with GET /{imagePath}. The firmware's log serializer emits this
+            only for camera-related events (not observed on the test panel).
           items:
             type: string
