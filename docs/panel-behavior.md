@@ -77,6 +77,12 @@ Background from the official manuals that explains what the API shows. Paraphras
 - **Remote control by phone** (BDA 11.4) has commands for disarm, arm, arm internally, silence sirens, **reset**, status query and switching outputs by their 3-digit number. The API may offer equivalents.
 - **Alarm transmission** (BDA 9.2): phone call (analogue or VoIP), alarm receiving centre, e-mail with the alarm text, SMS, push to the app. A phone alarm call is acknowledged with DTMF 5 (end this call, continue the chain) or 9 (stop the whole call chain).
 
+## Failed logins
+
+- Failed logins at the web interface raise a **"Webserver Code Sabotage"** alarm (confirmed on the test panel: an internal alarm with the internal sounders). Wrong codes at the keypad give "Zentrale Code Sabotage". The threshold isn't documented.
+- A single request to the REST API with wrong credentials (401) did not raise an alarm. Whether repeated 401s count towards code tamper is unknown; this was deliberately not tested, to avoid triggering an alarm.
+- Therefore: never retry automatically after a 401 or a failed web login.
+
 ## Log
 
 - **Capacity** (BDA 10.8): at most 600 entries, oldest overwritten first. The unfiltered `/logs/` response had exactly 600 entries. "Oldest" means oldest written, not the smallest timestamp, since timestamps aren't monotonic (e.g. after a restart before the clock is set).

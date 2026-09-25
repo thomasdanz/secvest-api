@@ -807,6 +807,14 @@ components:
         Wrong credentials. Plain HTML body without a Content-Type header and
         without a WWW-Authenticate challenge. Seen on GET /system/; assumed
         for the other endpoints.
+
+
+        Caution: the panel counts failed logins. Failed logins at the web
+        interface raise a "Webserver Code Sabotage" alarm (internal alarm,
+        loud), and the log also knows "Zentrale Code Sabotage". A single 401
+        at this API did not raise an alarm on the test panel; whether repeated
+        ones do is unknown and was deliberately not tested. Clients must not
+        retry after a 401 — stop and ask the user for new credentials.
       content:
         text/html:
           schema:
