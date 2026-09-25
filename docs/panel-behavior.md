@@ -66,6 +66,7 @@ Background from the official manuals that explains what the API shows. Paraphras
 
 - **Alarm types** (BDA 9.1): tamper, intrusion, panic, technical, fire, care/medical emergency, entry delay exceeded, exit delay exceeded.
 - **Signalling** depends on the arming state and configuration: internal, local, external or silent alarm.
+- **/alarms/ format** (firmware inference): there is no dedicated alarm serializer; the shared event serializer used for /faults/ is the only one emitting these keys, so an /alarms/ entry most likely has the same shape as a fault entry, of which the app reads only id/type/affects-partition. Not confirmed during a real alarm.
 - **Alarm states in the API** (confirmed by the firmware's partition serializer, and by a test alarm recorded by another project): the partition `state` is built from the arm state plus two flags (alarm active, alarm acknowledged), giving `set`/`partset`/`unset`, their hyphenated `*-alarm` variants and `acknowledged`. The alarm is therefore visible in `state`; `/faults/` stays empty during an alarm. A bare `alarm` string is never written.
 - **After an alarm** (BDA 9, 13.3):
   1. Disarm.

@@ -968,9 +968,17 @@ components:
     Alarm:
       type: object
       x-evidence: source
-      x-sources: [android-app]
+      x-sources: [android-app, firmware]
       description: >
-        One active alarm, as the Android app parses it. Not observed yet.
+        One active alarm. The Android app parses only id, type and
+        affects-partition. A firmware analysis found no dedicated alarm
+        serializer: the only function that emits these keys (type, id,
+        affects-partition, and also ui-string, affects-zone, prevents-set,
+        prevents-reset, is-rf-warning) is the shared event serializer also
+        used for /faults/. So an /alarms/ entry most likely has the same
+        shape as a Fault, and the app just reads a subset. Not captured
+        during a real alarm; the extra fields beyond the app's three are
+        inferred, not confirmed.
       properties:
         id:
           type: integer
@@ -981,8 +989,22 @@ components:
             "2" technical, "3" fire, "4" burglary, "6" medical, "7" panic,
             "8" social, "9" inactivity ("5" is not defined in the app).
         affects-partition:
-          type: integer
-          description: A single partition id here, unlike the list in Fault.
+          description: >
+            The app parses this as a single integer. In the shared event
+            format /faults/ uses, it is an array, so the real type on the
+            wire may differ.
+        ui-string:
+          x-sources: [firmware]
+          description: Likely present (shared event format); not confirmed.
+        affects-zone:
+          x-sources: [firmware]
+          description: Likely present for zone-related alarms; not confirmed.
+        prevents-set:
+          x-sources: [firmware]
+        prevents-reset:
+          x-sources: [firmware]
+        is-rf-warning:
+          x-sources: [firmware]
 
     Output:
       type: object
