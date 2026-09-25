@@ -78,6 +78,10 @@ Background from the official manuals that explains what the API shows. Paraphras
 - **Remote control by phone** (BDA 11.4) has commands for disarm, arm, arm internally, silence sirens, **reset**, status query and switching outputs by their 3-digit number. The API may offer equivalents.
 - **Alarm transmission** (BDA 9.2): phone call (analogue or VoIP), alarm receiving centre, e-mail with the alarm text, SMS, push to the app. A phone alarm call is acknowledged with DTMF 5 (end this call, continue the chain) or 9 (stop the whole call chain).
 
+## Push notifications (firmware)
+
+The firmware contains what looks like the payload the panel sends for push notifications (`system-name`, `mac`, `event`, `is-fault`, `is-restore`, `zone`, `zone-name`, `user`, `username`, `text`, `timestamp`, `sia`, `group`, …) and a list of event categories (`fire`, `medical`, `burg`, `technical`, `tamper`, `set-unset`, `part-set`, `reset`, `exit-timeout`, `omit`, `rf-supervision`, `rf-jamming`, `rf-battery-psu`, `panel-battery`, `panel-mains`, `faults`, `installer-mode`, `user-code-change`, `time-date-reset`, `camera-supervision`, …). Push is delivered through ABUS, not through the local API, so this is background only.
+
 ## Failed logins
 
 - Failed logins at the web interface raise a **"Webserver Code Sabotage"** alarm (confirmed on the test panel: an internal alarm with the internal sounders). Wrong codes at the keypad give "Zentrale Code Sabotage". The threshold isn't documented.

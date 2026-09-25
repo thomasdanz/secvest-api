@@ -997,6 +997,18 @@ components:
           type: integer
         timed:
           description: Type unknown.
+        ontime:
+          x-sources: [firmware]
+          description: >
+            Not observed. The firmware lists ontime, offtime and days-of-week
+            next to the output fields, presumably the schedule of a timed
+            output.
+        offtime:
+          x-sources: [firmware]
+          description: Not observed, see ontime.
+        days-of-week:
+          x-sources: [firmware]
+          description: Not observed, see ontime.
 
     Camera:
       type: object
@@ -1133,6 +1145,12 @@ components:
             is an installer setting.
         is-rf-warning:
           type: boolean
+      x-possible-fields-from-firmware:
+        [description, affects-user, affects-device, affects-modem, additional-property, language-string-info]
+      x-possible-fields-note: >
+        The firmware contains these names in a block following the known
+        fault fields. They may appear for some fault classes (e.g. faults of
+        users, wireless devices or the modem). Not observed.
 
     LogEntry:
       type: object
