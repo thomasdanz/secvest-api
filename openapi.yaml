@@ -578,7 +578,9 @@ paths:
       x-evidence: verified
       x-open-questions:
         - The entry format comes from the Android app (see Alarm); an actual
-          response during an alarm hasn't been seen yet.
+          response during an alarm hasn't been seen yet. Note the alarm is
+          already visible in a partition's `state` (see PartitionState), so
+          /alarms/ is only needed for per-alarm detail.
         - Does an entry stay until the alarm is acknowledged or reset? The app
           acknowledges via PUT /system/partitions-{n}/ with state
           acknowledged; it has no call for the reset ("rücksetzen") the
@@ -938,16 +940,20 @@ components:
         the only values observed so far.
 
 
-        Alarm states: a test alarm recorded by another project
-        (LLAlexX78/Secvest_FUAA50000-ha, on a FUAA50000, 07/2026) showed the
-        sequence set → set-alarm → acknowledged → unset in this field,
-        spelled with a hyphen as in the firmware. "acknowledged" means the
-        alarm was acknowledged but the partition is still in alarm memory
-        until it is disarmed; /faults/ stayed empty meanwhile. The Android
-        app knows set_alarm, unset_alarm, partset_alarm, alarm and
-        acknowledged (with underscores in its code) and treats the four alarm
-        values as "in alarm". Not observed on the test panel of this
-        specification; a client should still accept both spellings.
+        Alarm states: the partition serializer in the firmware writes the state
+        from the arm state plus two flags (alarm active, alarm acknowledged),
+        producing exactly these strings, hyphenated: set, partset, unset,
+        set-alarm, partset-alarm, unset-alarm, acknowledged. So an active
+        alarm is reported in this `state` field — a client can detect a
+        triggered alarm from /system/partitions/ alone, without /alarms/.
+        "acknowledged" means an alarm was acknowledged but not yet reset while
+        the partition is no longer armed. The firmware never writes a bare
+        "alarm" here, although the Android app's enum contains it (with
+        underscores in the app's code). A test alarm recorded by another
+        project (LLAlexX78/Secvest_FUAA50000-ha) matched this: set →
+        set-alarm → acknowledged → unset, with /faults/ empty. Still accept
+        both spellings for safety; not observed on this specification's test
+        panel.
 
 
         State rules the app applies before sending a PUT: set/partset only
@@ -1062,6 +1068,9 @@ components:
       properties:
         id:
           type: string
+          description: >
+            One-based partition number as a string; the firmware emits
+            partition index + 1.
         name:
           type: string
           description: Unused partitions are named "Teilber. <n>" by default.
