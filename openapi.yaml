@@ -22,8 +22,9 @@ info:
 
     Observations that apply to all endpoints:
 
-    - Responses are `application/json`. Strings are German UI texts as shown
-      on the panel.
+    - Responses are `application/json`, encoded as UTF-8 (checked on umlauts
+      in log texts). Strings are UI texts in the panel's language, as shown on
+      the panel.
 
     - Ids are strings, even where they look numeric.
 
@@ -243,7 +244,6 @@ paths:
         sending a request.
       x-evidence: verified
       x-sources: [node-red-contrib-secvest, homebridge-secvest]
-      x-open-questions:
       requestBody:
         required: true
         content:
@@ -626,6 +626,10 @@ paths:
         entry/exit door blocks partset (409) and makes set a silent no-op,
         without ever appearing here (see PUT /system/partitions-{n}/).
       x-evidence: verified
+      x-open-questions:
+        - The firmware builds this list in pages. Whether a response can be
+          cut off when there are many faults is unknown; at most two faults
+          have been seen at once.
       responses:
         "200":
           description: OK
@@ -685,7 +689,6 @@ paths:
         (checked for all alarm and trouble entries). The app's log filters
         "Alarme" and "Störungen" correspond to `type` alarm and trouble.
       x-evidence: verified
-      x-open-questions:
       parameters:
         - name: $filter
           in: query
@@ -867,9 +870,9 @@ components:
 
     NotFound:
       description: >
-        Unknown path (seen for GET /system404/). Plain HTML body without a
-        Content-Type header, like the 401. Whether unknown ids on known
-        resources answer the same way is still open.
+        Unknown path (seen for GET /system404/), and also an unknown
+        partition or zone (seen for partitions-9 and zones-220). Plain HTML
+        body without a Content-Type header, like the 401.
       content:
         text/html:
           schema:
@@ -932,12 +935,14 @@ components:
   schemas:
     PartitionState:
       type: string
-      enum: [unset, partset, set]
-      x-enum-not-observed: [unset-alarm, set-alarm, partset-alarm, alarm, acknowledged]
+      enum: [unset, partset, set, unset-alarm, set-alarm, partset-alarm, acknowledged]
+      x-observed: [unset, partset, set]
       x-sources: [firmware, android-app, LLAlexX78/Secvest_FUAA50000-ha]
       description: >
         unset = disarmed, partset = armed internally (home), set = armed —
-        the only values observed so far.
+        the only values observed on this specification's test panel. The
+        alarm values are what the firmware writes (see below). In a PUT, the
+        app only sends unset, partset, set and acknowledged.
 
 
         Alarm states: the partition serializer in the firmware writes the state
@@ -946,8 +951,10 @@ components:
         set-alarm, partset-alarm, unset-alarm, acknowledged. So an active
         alarm is reported in this `state` field — a client can detect a
         triggered alarm from /system/partitions/ alone, without /alarms/.
-        "acknowledged" means an alarm was acknowledged but not yet reset while
-        the partition is no longer armed. The firmware never writes a bare
+        "acknowledged" means the alarm was acknowledged but not yet reset; the
+        value doesn't tell whether the partition is still armed (the recorded
+        test alarm went acknowledged → unset, and the app allows unset from
+        acknowledged). The firmware never writes a bare
         "alarm" here, although the Android app's enum contains it (with
         underscores in the app's code). A test alarm recorded by another
         project (LLAlexX78/Secvest_FUAA50000-ha) matched this: set →
@@ -981,13 +988,19 @@ components:
         inferred, not confirmed.
       properties:
         id:
-          type: integer
+          type: [integer, string]
+          description: >
+            The app parses an integer; in the shared event format /faults/
+            uses, ids are strings. Accept both.
         type:
           type: string
           description: >
-            Alarm class as a numeric string: "0" undefined, "1" faults,
-            "2" technical, "3" fire, "4" burglary, "6" medical, "7" panic,
-            "8" social, "9" inactivity ("5" is not defined in the app).
+            Alarm class as a numeric string according to the app: "0"
+            undefined, "1" faults, "2" technical, "3" fire, "4" burglary,
+            "6" medical, "7" panic, "8" social, "9" inactivity ("5" is not
+            defined in the app). If /alarms/ really uses the fault serializer,
+            the value may instead be a fault-style class code (like 5000 in
+            /faults/); unknown.
         affects-partition:
           description: >
             The app parses this as a single integer. In the shared event
@@ -1223,7 +1236,11 @@ components:
             The panel's local wall-clock time, encoded as Unix seconds — read
             it as UTC to get the local time. With the panel in CEST, entries
             are 2 h ahead of the real Unix time (checked against the HTTP Date
-            header), and the app shows them the same way.
+            header), and the app shows them the same way. Consequence
+            (inferred, not observed): when daylight saving time ends, the
+            local clock repeats an hour, so timestamps — and ids, if they are
+            derived from them — can go backwards. An incremental client should
+            query with some overlap and not rely on the id alone.
         partition:
           type: string
           description: >
