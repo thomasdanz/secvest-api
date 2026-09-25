@@ -66,6 +66,7 @@ Background from the official manuals that explains what the API shows. Paraphras
 
 - **Alarm types** (BDA 9.1): tamper, intrusion, panic, technical, fire, care/medical emergency, entry delay exceeded, exit delay exceeded.
 - **Signalling** depends on the arming state and configuration: internal, local, external or silent alarm.
+- **Alarm states in the API** (from a test alarm recorded by another project): the partition state goes `set` → `set-alarm` → `acknowledged` → `unset`; `/faults/` stays empty meanwhile.
 - **After an alarm** (BDA 9, 13.3):
   1. Disarm.
   2. Acknowledge the alarm ("quittieren").
@@ -87,6 +88,7 @@ Background from the official manuals that explains what the API shows. Paraphras
 
 - **Capacity** (BDA 10.8): at most 600 entries, oldest overwritten first. The unfiltered `/logs/` response had exactly 600 entries. "Oldest" means oldest written, not the smallest timestamp, since timestamps aren't monotonic (e.g. after a restart before the clock is set).
 - **Timestamps** are local wall-clock time encoded as Unix seconds, so they are off by the UTC offset if read as real Unix time.
+- **Partition numbers in log events** are zero-based (`"0"` = partition 1), while the text counts from 1 ("TB 1").
 - **Arming** is logged the same way whether it comes from the keypad, the app or the API. Every arming also logs an "Übergehen" (override) entry. An omitted zone is logged when the partition is armed with it and again ("… ok") when it is included at disarm. Rejected attempts (409) leave no entry.
 - **Message texts:** The installer manual has an appendix listing every log message text with its meaning ("Logbuch Einträge").
 

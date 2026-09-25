@@ -117,6 +117,10 @@ x-open-questions:
   - The firmware's name table contains "partsets" next to the known resources
     and field names. GET /system/partsets/ and GET /partsets/ both give 404,
     so it is probably a field name rather than a resource. Where is it used?
+  - Can a single fault be acknowledged with PUT /faults/{id}/? One
+    third-party integration sends {"ack":true,"acknowledge":true} there;
+    the official app has no such call, and PUT on the whole /faults/ list
+    gives 403. Deliberately not tested.
   - What does GET /register/ do? It answered 200 with an empty JSON body,
     unlike other unsupported methods (see below), so it probably exists and
     returns nothing without a matching device header or registration.
@@ -219,7 +223,10 @@ paths:
         with `prevents-set`, other faults such as a weak battery are left
         out), for set and partset alike. After omitting the zone the same
         request succeeds. The list is evaluated for the requested state, so
-        it can contain faults that GET /faults/ doesn't show.
+        it can contain faults that GET /faults/ doesn't show. Another project
+        (LLAlexX78/Secvest_FUAA50000-ha) reports 409 also for arming a
+        partition without zones, and for partset on a partition that isn't
+        set up for internal arming.
 
 
         Open entry/exit door (zone type "Ein/Ausgang"): `set` answers 200 but
@@ -685,7 +692,8 @@ paths:
             OData-style filter. Seen: `timestamp ge <unix seconds>` (the app
             uses the newest known timestamp + 1). Returns `[]` when nothing
             matches. The firmware contains only this one filter pattern, so
-            other operators or fields are most likely not supported.
+            other operators or fields are most likely not supported. A `limit`
+            parameter is ignored (reported by LLAlexX78/Secvest_FUAA50000-ha).
           schema:
             type: string
           examples:
@@ -924,21 +932,22 @@ components:
       type: string
       enum: [unset, partset, set]
       x-enum-not-observed: [unset-alarm, set-alarm, partset-alarm, alarm, acknowledged]
-      x-sources: [firmware, android-app]
+      x-sources: [firmware, android-app, LLAlexX78/Secvest_FUAA50000-ha]
       description: >
         unset = disarmed, partset = armed internally (home), set = armed —
         the only values observed so far.
 
 
-        Alarm states (not observed yet): the Android app knows set_alarm,
-        unset_alarm, partset_alarm, alarm and acknowledged, and treats the
-        four alarm values as "in alarm". The firmware contains the same
-        values spelled with a hyphen (set-alarm, …), so the exact spelling on
-        the wire is still open. The hyphen is more likely: in the firmware
-        these strings sit right among the REST API's JSON names (partitions,
-        affects-partition, prevents-set, …). A client should accept both
-        spellings and treat any unknown state as a possible alarm. No test
-        alarm is planned, so this stays a hypothesis.
+        Alarm states: a test alarm recorded by another project
+        (LLAlexX78/Secvest_FUAA50000-ha, on a FUAA50000, 07/2026) showed the
+        sequence set → set-alarm → acknowledged → unset in this field,
+        spelled with a hyphen as in the firmware. "acknowledged" means the
+        alarm was acknowledged but the partition is still in alarm memory
+        until it is disarmed; /faults/ stayed empty meanwhile. The Android
+        app knows set_alarm, unset_alarm, partset_alarm, alarm and
+        acknowledged (with underscores in its code) and treats the four alarm
+        values as "in alarm". Not observed on the test panel of this
+        specification; a client should still accept both spellings.
 
 
         State rules the app applies before sending a PUT: set/partset only
@@ -1161,7 +1170,11 @@ components:
             header), and the app shows them the same way.
         partition:
           type: string
-          description: '"0" in every entry seen so far.'
+          description: >
+            Zero-based partition index: "0" is partition 1, "1" partition 2
+            (the text in desc counts from 1). Reported by
+            LLAlexX78/Secvest_FUAA50000-ha; consistent with "0" in every
+            entry of the single-partition test panel.
         user:
           type: string
           description: User slot ("0" = installer). Entries by "Ben053" carry no
