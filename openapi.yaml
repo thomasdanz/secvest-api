@@ -262,7 +262,10 @@ paths:
         already unset). With open zones, however, set and partset answered the
         same 409 with those zones as for an authorised user: blocking faults
         are evaluated before the rights, so a 409 doesn't show that the user
-        lacks them.
+        lacks them. By the same order, an open entry/exit door presumably
+        makes set a silent no-op (see below) for a user without rights as
+        well, rather than giving the 403 (inferred, not tested with an open
+        entry/exit door).
 
 
         Open entry/exit door (zone type "Ein/Ausgang"): `set` answers 200 but
