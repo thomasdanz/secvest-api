@@ -10,6 +10,8 @@ Not in scope: the API behind the panel's web interface (`sec_*.cgi`, `*.cgx`), w
 
 > **Disclaimer:** This is an unofficial community project, not affiliated with or endorsed by ABUS. The panel is security equipment — use this at your own risk, never load-test it, and be careful with anything that arms, disarms or switches outputs.
 
+> **Don't expose the API to the internet unprotected.** As far as tested, failed logins at the REST API neither raise the code tamper alarm nor leave a log entry, and nothing limits them (see `Unauthorized` in the specification). Credentials can therefore be guessed without anyone noticing, and the load alone may make the panel hang. Keep it in the local network, or put a reverse proxy in front that restricts access and limits failed logins; a User-Agent check is no protection, since any client can send the app's User-Agent.
+
 ## Layout
 
 | Path | Content |
