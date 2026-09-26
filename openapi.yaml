@@ -400,7 +400,7 @@ paths:
                     properties:
                       state:
                         type: string
-                        const: installer"
+                        const: installer
         "400":
           $ref: "#/components/responses/BadRequest"
         "409":
