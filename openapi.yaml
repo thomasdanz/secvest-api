@@ -77,6 +77,23 @@ info:
       Unknown keys in a PUT body are silently ignored (`200`, nothing
       changes).
 
+    - Reads don't depend on the user: a normal user (not administrator)
+      allowed to operate only partition 1 got the same responses as an
+      administrator — all four partitions in /system/ and /system/partitions/,
+      200 for /system/partitions-2/ and its zones, and unfiltered /faults/
+      (including a fault affecting all partitions) and /logs/ (including
+      installer and administrator entries); /alarms/, /outputs/ and /cameras/
+      answered as well. A client therefore can't learn a user's level or
+      partition rights from reads. Commands do depend on the rights: omitting
+      or including a zone of a partition the user may not operate gives the
+      empty 403 (see PUT /system/partitions-{n}/zones-{zone}/), and so does
+      setting a partition's state (set, partset and unset); only open zones
+      are reported first, with 409 (see PUT /system/partitions-{n}/). With
+      rights for the partition, a normal user omits zones, arms and disarms
+      exactly like an administrator, so an integration doesn't need an
+      administrator. The responses captured before were made with an
+      administrator allowed to operate every partition.
+
     - Background on zones, arming, alarms and resetting from the ABUS manuals
       is collected in docs/panel-behavior.md.
 
@@ -187,6 +204,11 @@ paths:
                   externalValue: fixtures/GET_system_partitions-1.example2.json
                 armed:
                   externalValue: fixtures/GET_system_partitions-1.example3.json
+                otherPartitionNormalUser:
+                  summary: >
+                    Partition 2, requested by a normal user who may only
+                    operate partition 1 — answered like for an administrator
+                  externalValue: fixtures/GET_system_partitions-2.json
         "404":
           description: Unknown partition (seen for partitions-9)
           content:
@@ -224,10 +246,23 @@ paths:
         with `prevents-set`, other faults such as a weak battery are left
         out), for set and partset alike. After omitting the zone the same
         request succeeds. The list is evaluated for the requested state, so
-        it can contain faults that GET /faults/ doesn't show. Another project
-        (LLAlexX78/Secvest_FUAA50000-ha) reports 409 also for arming a
-        partition without zones, and for partset on a partition that isn't
-        set up for internal arming.
+        it can contain faults that GET /faults/ doesn't show. A partition
+        without zones gives 409 with an empty list, for set and partset alike
+        (observed; also reported by LLAlexX78/Secvest_FUAA50000-ha, which
+        additionally reports 409 for partset on a partition that isn't set up
+        for internal arming). Disarming it answers 200.
+
+
+        A normal user (not administrator) with rights for the partition arms
+        (set, partset) and disarms exactly like an administrator; the log
+        records the actions with the user's slot number. A user without
+        rights for the partition gets `403` with an empty body
+        for set, partset and unset (tested with the open zones omitted by an
+        administrator; unset was refused even though the partition was
+        already unset). With open zones, however, set and partset answered the
+        same 409 with those zones as for an authorised user: blocking faults
+        are evaluated before the rights, so a 409 doesn't show that the user
+        lacks them.
 
 
         Open entry/exit door (zone type "Ein/Ausgang"): `set` answers 200 but
@@ -289,6 +324,34 @@ paths:
               partsetWithEntryDoorOpen:
                 summary: partset while the entry/exit door 219 is open — gives 409
                 externalValue: fixtures/PUT_system_partitions-1.409.example3.request.json
+              setEmptyPartition:
+                summary: set on partition 2 (no zones) — gives 409 with an empty list
+                externalValue: fixtures/PUT_system_partitions-2.409.request.json
+              partsetEmptyPartition:
+                summary: partset on partition 2 (no zones) — gives 409 with an empty list
+                externalValue: fixtures/PUT_system_partitions-2.409.example2.request.json
+              disarmEmptyPartition:
+                summary: unset on partition 2 (no zones) — 200
+                externalValue: fixtures/PUT_system_partitions-2.request.json
+              setWithoutRights:
+                summary: >
+                  set on partition 1 by a user who may only operate partition 2,
+                  with four zones open — gives the same 409 as for an authorised user
+                externalValue: fixtures/PUT_system_partitions-1.409.example4.request.json
+              partsetWithoutRights:
+                summary: partset, same situation — gives the same 409
+                externalValue: fixtures/PUT_system_partitions-1.409.example5.request.json
+              setWithoutRightsNothingBlocking:
+                summary: >
+                  set on partition 1 by a user who may only operate partition 2,
+                  open zones omitted — gives the empty 403
+                externalValue: fixtures/PUT_system_partitions-1.403.request.json
+              partsetWithoutRightsNothingBlocking:
+                summary: partset, same situation — empty 403
+                externalValue: fixtures/PUT_system_partitions-1.403.example2.request.json
+              disarmWithoutRights:
+                summary: unset, same situation (partition already unset) — empty 403
+                externalValue: fixtures/PUT_system_partitions-1.403.example3.request.json
       responses:
         "200":
           description: The partition with its new state
@@ -318,15 +381,33 @@ paths:
                 ignoredEntryDoorOpen:
                   summary: set while the entry/exit door 219 is open — ignored, still unset
                   externalValue: fixtures/PUT_system_partitions-1.example8.json
+                emptyPartitionDisarmed:
+                  summary: unset on partition 2 (no zones)
+                  externalValue: fixtures/PUT_system_partitions-2.json
         "403":
-          $ref: "#/components/responses/InstallerLoggedIn"
+          description: >
+            Either the user may not operate this partition (Content-Type
+            application/json, empty body) or the installer is logged in at
+            the panel (`{"state":"installer"}`, see InstallerLoggedIn). Tell
+            them apart by the body.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: string
+                    maxLength: 0
+                  - type: object
+                    properties:
+                      state:
+                        type: string
+                        const: installer"
         "400":
           $ref: "#/components/responses/BadRequest"
         "409":
           description: >
             Arming blocked. The body lists the blocking faults (the ones with
             prevents-set); seen for an open omittable zone, for set and
-            partset.
+            partset. A partition without zones gives an empty list.
           content:
             application/json:
               schema:
@@ -345,6 +426,20 @@ paths:
                     partset requested while the entry/exit door 219 was open
                     (not listed in GET /faults/ at the same time)
                   externalValue: fixtures/PUT_system_partitions-1.409.example3.json
+                emptyPartitionSet:
+                  summary: set on partition 2 (no zones)
+                  externalValue: fixtures/PUT_system_partitions-2.409.json
+                emptyPartitionPartset:
+                  summary: partset on partition 2 (no zones)
+                  externalValue: fixtures/PUT_system_partitions-2.409.example2.json
+                withoutRightsSet:
+                  summary: >
+                    set on partition 1 without rights for it, four zones open —
+                    identical to the answer for an authorised user
+                  externalValue: fixtures/PUT_system_partitions-1.409.example4.json
+                withoutRightsPartset:
+                  summary: partset, same situation
+                  externalValue: fixtures/PUT_system_partitions-1.409.example5.json
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -424,7 +519,13 @@ paths:
 
         Error behaviour: an unknown key is ignored (200 with the unchanged
         zone), an invalid value gives 400, a zone with `omittable: false`
-        gives 403 with an empty body, an unknown zone gives 404. Because an
+        gives 403 with an empty body, an unknown zone gives 404. The same empty
+        403 comes for omitting or including a zone of a partition the user may
+        not operate (normal user with rights for partition 2 only, zone 209 of
+        partition 1); the two cases can only be told apart by the zone's
+        `omittable`. A normal user (not administrator) with rights for the
+        partition can omit and include its zones just like an administrator,
+        and omitting an open zone removes its fault (checked with zone 209). Because an
         ignored request still answers 200, compare the returned `omitted`
         with the requested value.
 
@@ -466,6 +567,12 @@ paths:
               unknownZone:
                 summary: Zone 220, gives 404
                 externalValue: fixtures/PUT_system_partitions-1_zones-220.404.request.json
+              omitWithoutRights:
+                summary: Zone 209 by a user without rights for partition 1, gives 403
+                externalValue: fixtures/PUT_system_partitions-1_zones-209.403.request.json
+              includeWithoutRights:
+                summary: Same zone, include again — also 403
+                externalValue: fixtures/PUT_system_partitions-1_zones-209.403.example2.request.json
       responses:
         "200":
           description: The zone after the change (or unchanged, if the key was unknown)
@@ -490,8 +597,9 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           description: >
-            Either the zone is not omittable (Content-Type application/json,
-            empty body) or the installer is logged in at the panel
+            Either the zone is not omittable or the user may not operate its
+            partition (both Content-Type application/json, empty body), or the
+            installer is logged in at the panel
             (`{"state":"installer"}`, see InstallerLoggedIn). Tell them apart
             by the body.
           content:
@@ -629,8 +737,8 @@ paths:
       x-evidence: verified
       x-open-questions:
         - The firmware builds this list in pages. Whether a response can be
-          cut off when there are many faults is unknown; at most two faults
-          have been seen at once.
+          cut off when there are many faults is unknown; at most five faults
+          have been seen in one response.
       responses:
         "200":
           description: OK
@@ -653,6 +761,12 @@ paths:
                     same time — only 209 is a fault, compare the zones example
                     doorAndWindowOpen
                   externalValue: fixtures/GET_faults.example4.json
+                fiveFaults:
+                  summary: >
+                    Four open omittable zones and the repeater battery, read by
+                    a normal user who may only operate partition 1 — the
+                    battery fault still lists all four partitions
+                  externalValue: fixtures/GET_faults.example5.json
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -676,12 +790,17 @@ paths:
         overriding permitted faults; "Ben<user> TB <n> Ausgang" when an exit
         time starts at the keypad; "Eing gest. Z<zone>" when an entry time
         starts (the zone is only in the text, the event has no zone or user
-        field). Arming attempts rejected with 409 or silently ignored are not
-        logged.
+        field). Arming attempts rejected with 409 or 403 (missing rights) or
+        silently ignored are not logged, and neither is disarming a partition
+        that is already unset. Arming with omitted zones writes several
+        entries with the same timestamp (six in one second for four omitted
+        zones), so an incremental client must not assume one entry per
+        second.
 
 
-        Log requests are slow: 6 s for a filtered request returning 22
-        entries, while the other endpoints answer in about 0.1 s.
+        Log requests are slow: about 6 s for a filtered request, whether it
+        returns 22 or 7 entries, while the other endpoints answer in about
+        0.1 s.
         The fixture is a subset with one entry per message pattern. The app
         only ever asks for entries newer than the newest one it already has,
         using an OData-style `$filter`, and keeps older entries in a local
@@ -731,6 +850,18 @@ paths:
                     entry time started by entry/exit door 219, disarming (set
                     twice, then partset)
                   externalValue: fixtures/GET_logs_filter-timestamp-ge.example2.json
+                filteredNormalUser:
+                  summary: >
+                    $filter=timestamp ge <start of day>, read by a normal user
+                    who may only operate partition 1 — includes installer
+                    log-in/log-out and settings changes by other users
+                  externalValue: fixtures/GET_logs_filter-timestamp-ge.example3.json
+                armingCyclesNormalUser:
+                  summary: >
+                    Excerpt — a normal user (slot 3) with rights for partition 1
+                    omits four open zones, arms (set), disarms, and repeats
+                    with partset; the panel includes the zones again at disarm
+                  externalValue: fixtures/GET_logs_filter-timestamp-ge.example4.json
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":

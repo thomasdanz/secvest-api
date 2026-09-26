@@ -75,6 +75,7 @@ Background from the official manuals that explains what the API shows. Paraphras
 
   Only then can the panel be armed again. If the reset is skipped, it is requested again at the next arming.
 - **Via the app**, an alarm is acknowledged by setting the partition state to `acknowledged` (Android app, not tried). The app has no call for the reset.
+- **Via the web interface** (BDA 13): acknowledge by selecting the red (alarmed) partition and confirming; then reset with the "!" symbol that appears in the partition, again confirmed. At the keypad, the reset is requested after disarming; if skipped, it is asked for again at the next arming (BDA 9).
 - **Who may reset** is configured by the installer (INST, "Benutzer Rückstellung"), separately for zone alarms, zone tamper and system tamper. If the user may not, the installer has to reset. Tamper alarms often need the installer. `prevents-reset` in `/faults/` presumably marks faults that block the reset.
 - **Remote control by phone** (BDA 11.4) has commands for disarm, arm, arm internally, silence sirens, **reset**, status query and switching outputs by their 3-digit number. The API may offer equivalents.
 - **Alarm transmission** (BDA 9.2): phone call (analogue or VoIP), alarm receiving centre, e-mail with the alarm text, SMS, push to the app. A phone alarm call is acknowledged with DTMF 5 (end this call, continue the chain) or 9 (stop the whole call chain).
@@ -82,6 +83,17 @@ Background from the official manuals that explains what the API shows. Paraphras
 ## Push notifications (firmware)
 
 The firmware contains what looks like the payload the panel sends for push notifications (`system-name`, `mac`, `event`, `is-fault`, `is-restore`, `zone`, `zone-name`, `user`, `username`, `text`, `timestamp`, `sia`, `group`, …) and a list of event categories (`fire`, `medical`, `burg`, `technical`, `tamper`, `set-unset`, `part-set`, `reset`, `exit-timeout`, `omit`, `rf-supervision`, `rf-jamming`, `rf-battery-psu`, `panel-battery`, `panel-mains`, `faults`, `installer-mode`, `user-code-change`, `time-date-reset`, `camera-supervision`, …). Push is delivered through ABUS, not through the local API, so this is background only.
+
+## Users and rights
+
+- **User levels** (BDA 10.1): *Normaler Benutzer* (normal user) and *Administrator*, plus a duress code user ("Bedrohungscode", disarms seemingly normally but raises a silent alarm). A normal user can't manage other users and doesn't see some menus (e.g. contacts, info, panel restart); an administrator also has access to the system configuration.
+- **Partition rights** are set per user: arming/disarming permission for each of the four partitions (BDA 10.1, step 6).
+- **Installer code** (INST, Errichter Code): enters installer mode and performs an installer reset, but **cannot arm or disarm** the panel.
+- **Who may reset after an alarm** is set by the installer in "Benutzer Rückstellung", separately for zone alarms, zone tamper and system tamper (INST). If disabled, only the installer can reset. Disabling zone and system tamper reset is required for INCERT approval.
+- **In the API, reads don't depend on the user** (tested with a normal user allowed to operate only partition 1): the responses match an administrator's — all partitions, unfiltered faults and log.
+- **Commands do** (tested with the same user, rights changed to partition 2 only): omitting or including a zone of partition 1 gives the empty 403, the same answer as for a zone that isn't omittable. Setting partition 1's state gives the empty 403 as well — set, partset and even unset (tested with the open zones omitted by an administrator). Only when zones are open, set and partset answer the same 409 with those zones as for an authorised user: blocking faults are evaluated first, so that answer doesn't reveal the missing rights.
+- **A normal user with rights for the partition** omits and includes zones, arms (set and partset) and disarms exactly like an administrator; omitting an open zone removes its fault (checked with zone 209). The log records the actions with the user's slot number.
+- **A partition without zones** can't be armed: set and partset give 409 with an empty list; unset answers 200.
 
 ## Failed logins
 
@@ -94,7 +106,7 @@ The firmware contains what looks like the payload the panel sends for push notif
 - **Capacity** (BDA 10.8): at most 600 entries, oldest overwritten first. The unfiltered `/logs/` response had exactly 600 entries. "Oldest" means oldest written, not the smallest timestamp, since timestamps aren't monotonic (e.g. after a restart before the clock is set).
 - **Timestamps** are local wall-clock time encoded as Unix seconds, so they are off by the UTC offset if read as real Unix time.
 - **Partition numbers in log events** are zero-based (`"0"` = partition 1), while the text counts from 1 ("TB 1").
-- **Arming** is logged the same way whether it comes from the keypad, the app or the API. Every arming also logs an "Übergehen" (override) entry. An omitted zone is logged when the partition is armed with it and again ("… ok") when it is included at disarm. Rejected attempts (409) leave no entry.
+- **Arming** is logged the same way whether it comes from the keypad, the app or the API. Every arming also logs an "Übergehen" (override) entry. An omitted zone is logged when the partition is armed with it and again ("… ok") when it is included at disarm. Rejected attempts (409, 403 for missing rights) leave no entry, and neither does disarming a partition that is already unset.
 - **Message texts:** The installer manual has an appendix listing every log message text with its meaning ("Logbuch Einträge").
 
 ## App and push
