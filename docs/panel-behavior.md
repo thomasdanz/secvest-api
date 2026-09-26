@@ -88,7 +88,7 @@ The firmware contains what looks like the payload the panel sends for push notif
 
 - **User levels** (BDA 10.1): *Normaler Benutzer* (normal user) and *Administrator*, plus a duress code user ("Bedrohungscode", disarms seemingly normally but raises a silent alarm). A normal user can't manage other users and doesn't see some menus (e.g. contacts, info, panel restart); an administrator also has access to the system configuration.
 - **Partition rights** are set per user: arming/disarming permission for each of the four partitions (BDA 10.1, step 6).
-- **Installer code** (INST, Errichter Code): enters installer mode and performs an installer reset, but **cannot arm or disarm** the panel.
+- **Installer code** (INST, Errichter Code): enters installer mode and performs an installer reset, but **cannot arm or disarm** the panel. It can't use the REST API either: requests with the installer's credentials get the same `401` as wrong credentials (tested).
 - **Who may reset after an alarm** is set by the installer in "Benutzer Rückstellung", separately for zone alarms, zone tamper and system tamper (INST). If disabled, only the installer can reset. Disabling zone and system tamper reset is required for INCERT approval.
 - **In the API, reads don't depend on the user** (tested with a normal user allowed to operate only partition 1): the responses match an administrator's — all partitions, unfiltered faults and log.
 - **Commands do** (tested with the same user, rights changed to partition 2 only): omitting or including a zone of partition 1 gives the empty 403, the same answer as for a zone that isn't omittable. Setting partition 1's state gives the empty 403 as well — set, partset and even unset (tested with the open zones omitted by an administrator). Only when zones are open, set and partset answer the same 409 with those zones as for an authorised user: blocking faults are evaluated first, so that answer doesn't reveal the missing rights. By the same order, an open entry/exit door presumably makes `set` a silent no-op for such a user as well, instead of the 403 (inferred, not tested with an open entry/exit door).
@@ -98,7 +98,7 @@ The firmware contains what looks like the payload the panel sends for push notif
 ## Failed logins
 
 - Failed logins at the web interface raise a **"Webserver Code Sabotage"** alarm (confirmed on the test panel: an internal alarm with the internal sounders). Wrong codes at the keypad give "Zentrale Code Sabotage". The threshold isn't documented.
-- A single request to the REST API with wrong credentials (401) did not raise an alarm. Whether repeated 401s count towards code tamper is unknown; this was deliberately not tested, to avoid triggering an alarm.
+- A single request to the REST API with wrong credentials (401) did not raise an alarm, and neither did three 401s in a row (with the installer's credentials). Whether more 401s count towards code tamper is unknown; this was deliberately not tested further, to avoid triggering an alarm.
 - Therefore: never retry automatically after a 401 or a failed web login.
 
 ## Log

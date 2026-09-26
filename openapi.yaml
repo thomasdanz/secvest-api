@@ -48,6 +48,10 @@ info:
       unterbrochen, da 'Errichter' angemeldet ist.". After the installer logs
       out, requests succeed again.
 
+    - The installer can't use the API at all: requests with the installer's
+      credentials get the same `401` as wrong credentials (tested). Only
+      users (normal user or administrator) have access.
+
     - Wrong credentials get `401` with a small HTML body, no `Content-Type`
       and no `WWW-Authenticate` header, so clients have to send Basic Auth
       preemptively instead of waiting for a challenge.
@@ -970,14 +974,16 @@ components:
       description: >
         Wrong credentials. Plain HTML body without a Content-Type header and
         without a WWW-Authenticate challenge. Seen on GET /system/; assumed
-        for the other endpoints.
+        for the other endpoints. The installer's credentials get the same
+        response: the API accepts users only (tested).
 
 
         Caution: the panel counts failed logins. Failed logins at the web
         interface raise a "Webserver Code Sabotage" alarm (internal alarm,
         loud), and the log also knows "Zentrale Code Sabotage". A single 401
-        at this API did not raise an alarm on the test panel; whether repeated
-        ones do is unknown and was deliberately not tested. Clients must not
+        at this API did not raise an alarm on the test panel, and neither did
+        three 401s in a row (with the installer's credentials); whether more
+        do is unknown and was deliberately not tested. Clients must not
         retry after a 401 — stop and ask the user for new credentials.
       content:
         text/html:
