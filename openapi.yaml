@@ -983,7 +983,9 @@ components:
         loud), and the log also knows "Zentrale Code Sabotage". A single 401
         at this API did not raise an alarm on the test panel, and neither did
         three 401s in a row (with the installer's credentials); whether more
-        do is unknown and was deliberately not tested. Clients must not
+        do is unknown and was deliberately not tested. Those three 401s left
+        no entry in the log either (checked with the log of the following
+        hour), so a client can't see failed API logins there. Clients must not
         retry after a 401 — stop and ask the user for new credentials.
       content:
         text/html:

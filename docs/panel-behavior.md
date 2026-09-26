@@ -98,7 +98,7 @@ The firmware contains what looks like the payload the panel sends for push notif
 ## Failed logins
 
 - Failed logins at the web interface raise a **"Webserver Code Sabotage"** alarm (confirmed on the test panel: an internal alarm with the internal sounders). Wrong codes at the keypad give "Zentrale Code Sabotage". The threshold isn't documented.
-- A single request to the REST API with wrong credentials (401) did not raise an alarm, and neither did three 401s in a row (with the installer's credentials). Whether more 401s count towards code tamper is unknown; this was deliberately not tested further, to avoid triggering an alarm.
+- A single request to the REST API with wrong credentials (401) did not raise an alarm, and neither did three 401s in a row (with the installer's credentials). They didn't leave a log entry either. Whether more 401s count towards code tamper is unknown; this was deliberately not tested further, to avoid triggering an alarm.
 - Therefore: never retry automatically after a 401 or a failed web login.
 
 ## Log
@@ -106,7 +106,7 @@ The firmware contains what looks like the payload the panel sends for push notif
 - **Capacity** (BDA 10.8): at most 600 entries, oldest overwritten first. The unfiltered `/logs/` response had exactly 600 entries. "Oldest" means oldest written, not the smallest timestamp, since timestamps aren't monotonic (e.g. after a restart before the clock is set).
 - **Timestamps** are local wall-clock time encoded as Unix seconds, so they are off by the UTC offset if read as real Unix time.
 - **Partition numbers in log events** are zero-based (`"0"` = partition 1), while the text counts from 1 ("TB 1").
-- **Arming** is logged the same way whether it comes from the keypad, the app or the API. Every arming also logs an "Übergehen" (override) entry. An omitted zone is logged when the partition is armed with it and again ("… ok") when it is included at disarm. Rejected attempts (409, 403 for missing rights) leave no entry, and neither does disarming a partition that is already unset.
+- **Arming** is logged the same way whether it comes from the keypad, the app or the API. Every arming also logs an "Übergehen" (override) entry. An omitted zone is logged when the partition is armed with it and again ("… ok") when it is included at disarm. Rejected attempts (409, 403 for missing rights) leave no entry, and neither does disarming a partition that is already unset or a failed API login (401).
 - **Message texts:** The installer manual has an appendix listing every log message text with its meaning ("Logbuch Einträge").
 
 ## App and push
