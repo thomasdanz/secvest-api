@@ -14,6 +14,8 @@ Background from the official manuals that explains what the API shows. Paraphras
   - *Ausblendbar Zwangsaktiv*: the zone is omitted automatically if it is open when arming.
   - *Intern überwacht* (monitored when armed internally). This is most likely the API's `inner`.
 - **Omitting** (BDA 10.3): an omitted zone isn't monitored while armed and is **included again automatically at the next disarm**. The omission therefore lasts for one arming cycle. Confirmed via the API.
+- **Omitting is per zone, not per partition.** *Ausblendbar* is a zone property set by the installer (INST, zone properties), and omitting excludes the detector as such (BDA 10.3). The API matches: one `omitted` per zone, and the log writes "Zone … ausgeblendet" without a partition. The partition in the request path (`/system/partitions-{n}/zones-{z}/`) only routes the request and decides the rights.
+- **A zone can belong to several partitions** (INST: "Wenn ein Melder mehreren Teilbereichen zugeordnet ist, …"; zones of type *Nur Logbuch* explicitly). Which partition's disarm includes an omitted shared zone again is not documented and untested (the test panel has no shared zones).
 
 ## Arming
 

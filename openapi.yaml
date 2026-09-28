@@ -1146,7 +1146,14 @@ components:
             "6" medical, "7" panic, "8" social, "9" inactivity ("5" is not
             defined in the app). If /alarms/ really uses the fault serializer,
             the value may instead be a fault-style class code (like 5000 in
-            /faults/); unknown.
+            /faults/); unknown. The panel's own names for these classes
+            (language packs of firmware v3.01.31, English / German):
+            burglary = Burglar Alarm / Einbruchalarm, fire = Fire Alarm /
+            Feuer, technical = Technical Alarm / Technik, panic = Hold Up
+            Alarm / Überfallalarm, medical = Medical Alarm / Medizin. Alarm,
+            social = Social Care Alarm / Pflegenotruf Alarm, inactivity =
+            Social Inactivity / Inaktivität Pflege, faults = Trouble /
+            Störung; "undefined" has no panel text.
         affects-partition:
           description: >
             The app parses this as a single integer. In the shared event
