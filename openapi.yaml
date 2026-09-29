@@ -32,7 +32,12 @@ info:
       log user name), so clients have to parse leniently.
 
     - The iOS app identifies itself as
-      `Secvest/<yyyymmdd> CFNetwork/<version> Darwin/<version>` and sends
+      `Secvest/<yyyymmdd> CFNetwork/<version> Darwin/<version>` (seen:
+      always `Secvest/20240402`, with CFNetwork 3860 / Darwin 25 and, after
+      an iOS update, CFNetwork 3896 / Darwin 27; the eight digits look like
+      the app's build date, CFNetwork and Darwin change with iOS). The Android app (2.6.6) contains no `Secvest/` user agent,
+      only OkHttp 4.10.0, so it most likely sends OkHttp's default
+      `okhttp/4.10.0` (static analysis, not captured). The iOS app sends
       `Accept: application/json`, `Content-Type: application/json` (also on
       GET) and a `device` header with 64 hex characters (all `f` on the test
       device).
