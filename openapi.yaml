@@ -125,6 +125,15 @@ info:
       just keep-alive. How the app uses the API is
       described in docs/app-behavior.md.
 
+    - Behind an nginx reverse proxy, resumption towards the panel needs a
+      fixed upstream address: nginx keeps upstream TLS sessions per worker
+      process, and a `proxy_pass` built from variables resumes none, so
+      every new connection costs the full handshake. Nginx Proxy Manager's
+      default location builds it from variables
+      (`$forward_scheme://$server:$port$request_uri`); a custom location for
+      `/` writes the address literally, and sessions are resumed per worker
+      (observed in practice).
+
 servers:
   - url: https://{host}:{port}
     variables:
