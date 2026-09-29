@@ -649,8 +649,9 @@ paths:
         receives push notifications. The first capture saw nothing of the
         kind at a normal app start; a later one (iOS app build 20240402 on
         iOS 27, seen in a reverse proxy's access log) saw one PUT /register/
-        right after the start-up reads, without the settings being saved,
-        answered by the panel with `404` and a 63-byte body.
+        right after the start-up reads at each of two app starts a few
+        minutes apart, without the settings being saved, both answered by the
+        panel with `404` and a 63-byte body.
       x-evidence: verified
       x-open-questions:
         - Response status and body — in both calls of the first capture the
