@@ -38,6 +38,8 @@ PUT /register/   {"username":"<user code>","language":"de","device-name":"iPhone
 
 It sent this twice, 11 s apart, and each call created its own entry in the panel's push device list. An administrator then has to enable the entry ("Zugriff") in the web interface before the device receives push notifications. The `device` header on every request stays all `f` regardless.
 
+A later observation (build `20240402` on iOS 27, from a reverse proxy's access log, not a full capture) saw the app send `PUT /register/` once at a normal start, right after the start-up reads and without saving the settings; the panel answered `404` with a 63-byte body, whose content wasn't captured. Why the app sent it then, and what the 404 means, is open (see the specification).
+
 ### Polling while the app is open
 
 About every **24 seconds**, on either tab:

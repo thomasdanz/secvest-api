@@ -646,14 +646,22 @@ paths:
         token, listed with the device name and the user derived from
         `username`. A new entry has "Zugriff" (access) unchecked; according to
         the app guide an administrator has to enable the device there before it
-        receives push notifications. Nothing is sent at a normal app start.
+        receives push notifications. The first capture saw nothing of the
+        kind at a normal app start; a later one (iOS app build 20240402 on
+        iOS 27, seen in a reverse proxy's access log) saw one PUT /register/
+        right after the start-up reads, without the settings being saved,
+        answered by the panel with `404` and a 63-byte body.
       x-evidence: verified
       x-open-questions:
-        - Response status and body — in both captured calls the connection was
-          closed after 1-2 s without a response, yet the device was
-          registered. The Android app reads the raw response and knows the
-          outcomes OK, NOT_FOUND and Unauthorized (presumably from the HTTP
-          status).
+        - Response status and body — in both calls of the first capture the
+          connection was closed after 1-2 s without a response, yet the device
+          was registered; the later call got `404` (body not captured). The
+          Android app reads the raw response and knows the outcomes OK,
+          NOT_FOUND and Unauthorized (presumably from the HTTP status), so a
+          404 is a known outcome to the app. What it means (e.g. device
+          already registered, or registration disabled) is unknown.
+        - When exactly does the app send it at start-up (every start, after an
+          app or OS update, or when the push token changed)?
         - How is a registration removed or updated from the app side, if at
           all?
         - Values of `platform` besides `ios` (presumably `android`).
@@ -686,6 +694,10 @@ paths:
               ios:
                 externalValue: fixtures/PUT_register.request.json
       responses:
+        "404":
+          description: >
+            Seen once for a call at app start-up, 63-byte body not captured
+            (see x-open-questions).
         default:
           description: Not captured yet (see x-open-questions).
         "401":
