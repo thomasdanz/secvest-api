@@ -820,8 +820,10 @@ paths:
 
         What gets logged for arming (seen): "Ben<user> TB <n> aktiv" /
         "intern aktiv" / "deaktiv" for arming via keypad, app and API alike;
-        "Ben<user>TB <n> Übergehen" with every arming, presumably for
-        overriding permitted faults; "Ben<user> TB <n> Ausgang" when an exit
+        "Ben<user>TB <n> Übergehen" when arming despite a pending warning
+        (installer manual: armed despite a warning; app and API arm without
+        asking and only log it), so with most but not all armings (none on
+        2026-10-03, see the partset example); "Ben<user> TB <n> Ausgang" when an exit
         time starts at the keypad; "Eing gest. Z<zone>" when an entry time
         starts (the zone is only in the text, the event has no zone or user
         field). Arming attempts rejected with 409 or 403 (missing rights) or
@@ -896,6 +898,14 @@ paths:
                     omits four open zones, arms (set), disarms, and repeats
                     with partset; the panel includes the zones again at disarm
                   externalValue: fixtures/GET_logs_filter-timestamp-ge.example4.json
+                partsetWithOmittedZones:
+                  summary: >
+                    A normal user (slot 3) arms partition 1 with partset through
+                    the API with three zones omitted beforehand, and disarms
+                    five seconds later; no "Übergehen" entry. The disarm request
+                    was answered with Date: Sat, 03 Oct 2026 18:25:01 GMT, and
+                    its entry has timestamp 1791059101 (20:25:01 CEST)
+                  externalValue: fixtures/GET_logs_filter-timestamp-ge.example5.json
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1383,8 +1393,9 @@ components:
         id:
           type: string
           description: >
-            Appears to be (unix timestamp << 8) | sequence number within that
-            second.
+            (unix timestamp << 8) | sequence number within that second, in
+            the order the entries were written; this holds for every recorded
+            entry (e.g. four entries of one second numbered 0 to 3).
         type:
           type: string
           enum: [normal, alarm, trouble]
@@ -1416,9 +1427,11 @@ components:
             The panel's local wall-clock time, encoded as Unix seconds — read
             it as UTC to get the local time. With the panel in CEST, entries
             are 2 h ahead of the real Unix time (checked against the HTTP Date
-            header), and the app shows them the same way. Consequence
+            header, recorded pair: a disarm answered with Date: Sat, 03 Oct
+            2026 18:25:01 GMT wrote an entry with timestamp 1791059101, i.e.
+            20:25:01 CEST), and the app shows them the same way. Consequence
             (inferred, not observed): when daylight saving time ends, the
-            local clock repeats an hour, so timestamps — and ids, if they are
+            local clock repeats an hour, so timestamps — and ids, which are
             derived from them — can go backwards. An incremental client should
             query with some overlap and not rely on the id alone.
         partition:
