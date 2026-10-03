@@ -822,8 +822,9 @@ paths:
         "intern aktiv" / "deaktiv" for arming via keypad, app and API alike;
         "Ben<user>TB <n> Übergehen" when arming despite a pending warning
         (installer manual: armed despite a warning; app and API arm without
-        asking and only log it), so with most but not all armings (none on
-        2026-10-03, see the partset example); "Ben<user> TB <n> Ausgang" when an exit
+        asking and only log it): with the recorded armings made while a
+        repeater reported a low battery, and none once it was replaced (see
+        the partset example); "Ben<user> TB <n> Ausgang" when an exit
         time starts at the keypad; "Eing gest. Z<zone>" when an entry time
         starts (the zone is only in the text, the event has no zone or user
         field). Arming attempts rejected with 409 or 403 (missing rights) or
