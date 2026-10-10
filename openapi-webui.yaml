@@ -98,7 +98,9 @@ info:
     - **Log.** A session writes "Ben<nnn> Log in (Web)" at the login and
       "Ben<nnn> Log out(Web)" at the logout (log type normal, with the user
       slot), nothing else, also not for reading the zone list (checked
-      through the REST log). The manuals also
+      through the REST log). An installer's session writes four entries:
+      "Ben000 Log in (Web)" and "Ben 000 Log in" at the login, the same with
+      "Log out" at the logout (seen twice, 2026-10-10). The manuals also
       list "Anmelden"/"Abmelden"; they didn't appear.
 
     - **REST API.** A web session of a normal user doesn't lock the REST
@@ -157,8 +159,7 @@ info:
     only): Info → Kommunikation and Hybrid Module, the log (`sec_log.cgi`),
     the virtual keypad (`sec_virtkeypad.cgi`/`.cgx`), the user tests, and in
     the installer's menu the other component lists (`sec_zones.cgi`/`.cgx`
-    with another `bus` for IP, wired and HyMo zones), repeaters
-    (`sec_repeaters.cgi`), the signal strengths
+    with another `bus` for IP, wired and HyMo zones), the signal strengths
     (`sec_test_signal_strengths.cgi`/`.cgx`, `sec_test_repeater_*.cgx`) and
     the configuration pages.
 
@@ -507,6 +508,37 @@ paths:
               examples:
                 about:
                   externalValue: fixtures/POST_sec_about_panel.cgx.xml
+
+  /sec_repeaters.cgi:
+    post:
+      operationId: getRepeatersPage
+      summary: RF repeater list (installer menu)
+      x-evidence: verified
+      description: >
+        Komponenten → RF Repeater, captured in an installer's session
+        (2026-10-10). There is no data request (`.cgx`) for this page, and
+        it shows no status: a repeater's battery, tamper or supervision
+        faults are only reported through the REST API's /faults/. Whether a
+        normal user's session gets the page is untested.
+      requestBody:
+        $ref: "#/components/requestBodies/ListingForm"
+      responses:
+        "200":
+          description: >
+            HTML table of the four repeater slots: "Repeater 1" to
+            "Repeater 4", each either with its name in quotes (rows with
+            `data-rept_idx`, counted from 0) or "Nicht hinzugefügt"; plus a
+            button to remove all. Clicking a repeater loads
+            `sec_repeater_edit.cgi`: its name and buttons to the pages that
+            choose what it repeats (`sec_repeater_panel.cgi`,
+            `sec_repeater_zones.cgi`, `sec_repeater_control_device.cgi`,
+            `sec_repeater_doorlocks.cgi`, `sec_repeater_ext_sirens.cgi`,
+            `sec_repeater_int_sirens.cgi`, `sec_repeater_io_modules.cgi`; not
+            captured), again without status.
+          content:
+            text/html:
+              schema:
+                type: string
 
   /index.htm:
     post:
