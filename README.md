@@ -6,7 +6,7 @@ Only facts about the interface are recorded — no firmware, app binaries or dec
 
 Tested with a Secvest Touch FUAA50500 running firmware **v3.01.31**. Other firmware versions are untested; please report differences.
 
-Not in scope: the API behind the panel's web interface (`sec_*.cgi`, `*.cgx`), which is a different interface.
+The requests behind the panel's web interface (`sec_*.cgi`, `*.cgx`) are a different interface with a form login, session and CSRF token; they are documented separately in `openapi-webui.yaml` (login, session, overview, Info, the wireless zone list and logout captured).
 
 > **Disclaimer:** This is an unofficial community project, not affiliated with or endorsed by ABUS. The panel is security equipment — use this at your own risk, never load-test it, and be careful with anything that arms, disarms or switches outputs.
 
@@ -17,6 +17,7 @@ Not in scope: the API behind the panel's web interface (`sec_*.cgi`, `*.cgx`), w
 | Path | Content |
 |---|---|
 | `openapi.yaml` | The specification; grows with every finding |
+| `openapi-webui.yaml` | The web interface's requests (login, session, overview, logout, component lists); its fixtures are the `*.cgx.xml` files in `fixtures/` |
 | `fixtures/` | Redacted example responses, named after method and path (`GET_system_partitions-1_zones.json`); further examples of the same request get `.example2`, `.example3`, …; request bodies end in `.request.json`, error responses carry the status code (`GET_system.403.json`) |
 | `docs/app-behavior.md` | How the official app uses the API (screens, polling, timing) |
 | `docs/panel-behavior.md` | Background from the ABUS manuals: zone types, arming, alarms, reset |
@@ -29,7 +30,7 @@ Not in scope: the API behind the panel's web interface (`sec_*.cgi`, `*.cgx`), w
 Every operation carries `x-evidence`, and `x-sources` where it comes from third-party code:
 
 - `verified` — observed on a real panel, the redacted response is in `fixtures/`
-- `source` — taken from third-party code or reports, docs, the panel firmware's strings or a static analysis of the official Android app (`x-sources` says which) ([node-red-contrib-secvest](https://github.com/yreiser/node-red-contrib-secvest), [homebridge-secvest](https://github.com/chris1705/homebridge-secvest), [PySecvest](https://github.com/chris1705/PySecvest)), not checked yet
+- `source` — taken from third-party code or reports, docs, the panel firmware's strings or a static analysis of the official Android app (`x-sources` says which) ([node-red-contrib-secvest](https://github.com/yreiser/node-red-contrib-secvest), [homebridge-secvest](https://github.com/chris1705/homebridge-secvest), [PySecvest](https://github.com/chris1705/PySecvest), for the web interface [secvest-ha](https://github.com/dkmouk/secvest-ha)), not checked yet
 - `assumption` — educated guess
 
 What is still unknown is listed in `x-open-questions`, on the operation it belongs to or at the top of the spec.
@@ -45,7 +46,7 @@ Nothing that identifies an installation goes into git: host names, IP and MAC ad
    ```
 3. Before every commit:
    ```bash
-   scripts/redact.py --check fixtures openapi.yaml
+   scripts/redact.py --check fixtures openapi.yaml openapi-webui.yaml
    ```
 
 Built-in rules replace IPv4, MAC and e-mail addresses and blank out values of sensitive-looking JSON keys (`serial`, `code`, `pin`, `username`, `phone`, `sip`, …). Always review a fixture by eye as well — the rules can't know every field.

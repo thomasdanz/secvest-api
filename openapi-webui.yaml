@@ -1,0 +1,744 @@
+openapi: 3.1.0
+info:
+  title: ABUS Secvest Touch web interface (unofficial)
+  version: 0.3.0
+  x-tested-firmware: v3.01.31
+  license:
+    name: MIT
+    identifier: MIT
+  description: >
+    Reverse-engineered requests behind the web interface ("Weboberfläche",
+    "Webserver") of the ABUS Secvest Touch (FUAA50500). This is a different
+    interface from the REST API in openapi.yaml: HTML pages (`*.cgi`),
+    XML data (`*.cgx`) and a form login with a session id and a CSRF token
+    instead of Basic Auth.
+
+
+    **Evidence.** Operations marked `verified` were captured in a browser
+    session of a normal user (not administrator) on firmware v3.01.31,
+    through a reverse proxy (2026-10-10): login, overview, the list of zones
+    to omit, Info → Zentrale, the wireless zone list (requested from the
+    browser's console, since the menu hides it) and logout. The XML answers are in `fixtures/`; the HTML pages
+    and scripts are ABUS's code and are only described, not stored.
+    dkmouk/secvest-ha 0.2.22 (commit 2479e9f,
+    `custom_components/secvest/api.py`), which reads the wireless zone
+    list, was the first source; where it differs from the capture, this is
+    noted. Facts from the ABUS manuals are marked as such.
+
+
+    Observations that apply to all requests (verified unless noted):
+
+    - The web interface is served on the same host and HTTPS port as the
+      REST API (default 4433).
+
+    - **Session.** The login answers with a numeric session id (nine or ten
+      digits seen) in the page; the page's script stores it as the cookie
+      `ssid` (path `/`, expires after a day). The panel itself sends no
+      `Set-Cookie`. Every later request carries the cookie. The page's data
+      and page requests (`*.cgx`, pages loaded into the main page) also send
+      the session's CSRF token as the form field `csrf_token` (see
+      GET /sec_dynamicjs.cgi); `sec_global_status.cgx` and `events.cgx` are
+      sent without it, and `sec_zones.cgx` answered without it too
+      (tested).
+
+    - Request bodies are `application/x-www-form-urlencoded`; the scripts
+      send `X-Requested-With: XMLHttpRequest`. Whether the panel checks it,
+      `Origin` or `Referer` is unknown.
+
+    - **XML answers** (`*.cgx`, `text/xml`) are lists of updates for the
+      page: `<text>` (an element's content), `<vis>` (CSS visibility,
+      `hidden`/`visible`), `<disp>` (CSS display), `<col>` and `<bgcol>`
+      (colours), `<bargraph>`, each with `<id>` (the id of an element in the
+      page) and `<value>`; some answers add own elements
+      (`<authorised>`, `<open_zones>`). The page's script applies them
+      without knowing their meaning, so the meaning of an id like `rtm110_0`
+      only follows from the page that contains it. Non-ASCII characters in
+      `events.cgx` are not UTF-8 although no charset is declared
+      (presumably ISO-8859-1, like the start page declares; the fixtures
+      store them so).
+
+    - **Load.** An open web interface polls continuously: in steady state
+      about 1.7 requests per second (`events.cgx` every second,
+      `sec_global_status.cgx` together with GET /system/partitions/ and
+      GET /faults/ of the REST API every 2 s, plus the data of the current
+      page every 2.5–5 s). That is far more than the official app. A client
+      that only needs data should send only the requests it needs, and log
+      out.
+
+    - **Side effects of the main page.** When it loads, the main page's
+      script sends three events through `events.cgx`:
+      `panelTest_stopTests`, `radioDevice_cancelAll` and
+      `firmwareCheckUpdate`. The last makes the panel check the ABUS server
+      for a firmware update at every web login (answered with
+      `firmwareCheckStarted`, `firmwareCheckChecking`,
+      `firmwareUpdateNotAvailable`). A client must not imitate the main page
+      blindly.
+
+    - **Automatic logout.** The page's script submits the logout after
+      `INACTIVITY_TIMEOUT_MS` (60000 for a normal user) without user
+      activity; polling doesn't count. The panel also ends an idle session
+      itself: a normal user's session left without logout was ended 54 s
+      after its last request (57 s after the login), and the log got the
+      same "Log out(Web)" entry as for a logout; a session without any
+      request after the login was ended 55 s after it (both 2026-10-10).
+      Keeping a session open would therefore need a request about every
+      50 s; a client that reads rarely logs in, reads and logs out each
+      time. The manuals: 1 minute for a normal user or administrator, 1
+      hour for the installer or a level 4 user.
+
+    - **Expired session.** A data request with a session the panel has
+      ended gets `401` with a small HTML body and no `Content-Type`, like
+      the REST API's 401 (tested with `sec_zones.cgx` two minutes after the
+      login, 2026-10-10). It isn't a failed login: no credentials were sent,
+      and it left no log entry.
+      The page's script reacts to a 401 of `sec_global_status.cgx` the same
+      way, by going back to the start page. dkmouk/secvest-ha expects
+      `<nloggedin>` in a 200 instead, which the panel didn't send here.
+
+    - **Log.** A session writes "Ben<nnn> Log in (Web)" at the login and
+      "Ben<nnn> Log out(Web)" at the logout (log type normal, with the user
+      slot), nothing else, also not for reading the zone list (checked
+      through the REST log). The manuals also
+      list "Anmelden"/"Abmelden"; they didn't appear.
+
+    - **REST API.** A web session of a normal user doesn't lock the REST
+      API, also when the REST requests use the same user; the installer's
+      web session does, with `403 {"state":"installer"}` (tested, see
+      openapi.yaml). The main page's script itself reads
+      GET /system/partitions/ and GET /faults/ of the REST API with the
+      session cookie and a fixed Basic Auth header written into the script
+      (user and password `NO401`, presumably named so because a 401 would
+      make the browser ask for credentials), not with the user's
+      credentials. Without a session cookie, that header gets the empty
+      `403` (tested once with GET /system/, 2026-10-10; no log entry), not a
+      401, so it grants nothing by itself.
+
+    - **Menus by level.** The main page contains the menus of every level;
+      those of other levels are only hidden (`display:none`). A normal user
+      gets Info, Status, Konfiguration, Benutzer, Test, Logbuch, Tastatur
+      and Zonen ausblenden; the components (Komponenten → Funk Zonen, …)
+      and the signal strengths (Test → Signalstärken) are only in the
+      installer's menu (an administrator doesn't see them either, tested).
+      The panel doesn't check this, though: a normal user's session got the
+      wireless zone list and its data (`sec_zones.cgi`/`.cgx`) like the
+      installer would.
+
+    - **Failed logins raise a "Webserver Code Sabotage" alarm** (confirmed
+      on the test panel, see docs/panel-behavior.md: an internal alarm with
+      the internal sounders). The threshold isn't documented; at the keypad
+      it is 4 wrong codes in a row. Two failed web logins in a row raised no
+      alarm (tested), so it is more than two. Clients must never retry a
+      failed login, neither at once nor at their next polling round, and
+      must not retry the login request after a timeout or a server error
+      either: it may have reached the panel.
+
+
+    **Minimal client sequence** (verified 2026-10-10 with a plain HTTP
+    client, no browser, normal user): POST /sec_login.cgi without any
+    cookie, take the session id from the answer; POST /sec_zones.cgx
+    (wireless, `bus=0`); POST /index.htm to log out. Three requests, every
+    answer 200, the zone data complete (48 rows), about 3 s in all with a
+    pause of a second between the requests. The page requests
+    (`sec_main.cgi`, `sec_zones.cgi`) aren't needed: the same run with them
+    gave the same data. The CSRF token isn't needed either:
+    `sec_zones.cgx` answered the same without `csrf_token` (tested once);
+    the panel doesn't check it there, like for `sec_global_status.cgx` and
+    `events.cgx`, which the page sends without it anyway. Since no script
+    runs, none of the main page's events (firmware check, …) and none of
+    its polling are sent. The login needs no cookie beforehand. The signal
+    strengths change between reads (the level of the last received
+    message): three minutes apart, about a third of the used zones
+    differed, the direct level by up to two steps and the level at the
+    repeater by up to eight. A single read is a snapshot, not a quality
+    measure.
+
+
+    Pages and data the scripts know but which weren't captured (names
+    only): Info → Kommunikation and Hybrid Module, the log (`sec_log.cgi`),
+    the virtual keypad (`sec_virtkeypad.cgi`/`.cgx`), the user tests, and in
+    the installer's menu the other component lists (`sec_zones.cgi`/`.cgx`
+    with another `bus` for IP, wired and HyMo zones), repeaters
+    (`sec_repeaters.cgi`), the signal strengths
+    (`sec_test_signal_strengths.cgi`/`.cgx`, `sec_test_repeater_*.cgx`) and
+    the configuration pages.
+
+servers:
+  - url: https://{host}:{port}
+    variables:
+      host:
+        default: secvest.local
+      port:
+        default: "4433"
+
+security:
+  - sessionCookie: []
+
+x-open-questions:
+  - From which failed login in a row on is the code tamper alarm raised,
+    and does a successful login reset the count? Not to be tested on
+    purpose.
+  - Does a request (other than the page's polling) extend a session, i.e.
+    is the minute counted from the last request or from the login? Only
+    matters for clients that keep a session open.
+  - The logout form sends an empty `ssid`; does the panel end the session
+    by the cookie?
+
+paths:
+  /:
+    get:
+      operationId: getStartPage
+      summary: Start page, redirects to the login
+      x-evidence: verified
+      security: []
+      responses:
+        "200":
+          description: >
+            Static HTML (declared as ISO-8859-1) whose meta refresh loads
+            `sec_login.cgi`.
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /sec_login.cgi:
+    get:
+      operationId: getLoginPage
+      summary: Login form
+      x-evidence: verified
+      security: []
+      responses:
+        "200":
+          description: >
+            HTML login form with the fields `usr` (labelled "Benutzer Code")
+            and `pwd` ("Passwort"), both password inputs with at most 16
+            characters, and a hidden input with id `ssid` and the value `0`.
+            Writes nothing to the log.
+          content:
+            text/html:
+              schema:
+                type: string
+    post:
+      operationId: login
+      summary: Log in with user code and password
+      x-evidence: verified
+      description: >
+        Form login; writes "Ben<nnn> Log in (Web)" to the log. A failed
+        login counts towards the "Webserver Code Sabotage" alarm: never
+        retry.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [usr, pwd]
+              properties:
+                usr:
+                  type: string
+                  maxLength: 16
+                  description: The user's code, as for the REST API's Basic Auth.
+                pwd:
+                  type: string
+                  maxLength: 16
+                  description: >
+                    The user's remote password, as for the REST API. A
+                    password that contains `&` doesn't work here, although
+                    the app and the REST API accept it (tested; presumably
+                    the form is decoded before it is split at `&`). `_`,
+                    `!`, `-`, `*`, digits and letters work; umlauts are
+                    untested. Such a login fails and counts towards code
+                    tamper.
+      responses:
+        "200":
+          description: >
+            Success: the login page again, now with the session id as the
+            value of the hidden input with id `ssid` (e.g.
+            `<input type="hidden" value="123456789" id="ssid" />`), an empty
+            `warning-text` element, and `document.redirectform.submit()` in
+            the body's `onload`; the script stores the id as the cookie
+            `ssid` and posts it to `sec_main.cgi`.
+
+
+            Failure (wrong password, observed 2026-10-10): also `200` with
+            the same headers, but the session id is `0`, the `warning-text`
+            element (shown red, bold, upper case) holds a UI text in the
+            panel's language ("Fehler: Benutzername oder Passwort ungültig"),
+            and there is no redirect. A client recognises the failure by the
+            session id `0` (or a missing one), never by the text. A single
+            failed login wrote no log entry and raised no alarm; it counts
+            towards "Webserver Code Sabotage" all the same.
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /sec_main.cgi:
+    post:
+      operationId: getMainPage
+      summary: Main page after the login
+      x-evidence: verified
+      description: >
+        The frame of the web interface: menus, the arming buttons and the
+        scripts. Loading it in a browser starts the polling and sends the
+        events described at the top (firmware check). Also requested again
+        by the menu entry Status.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [ssid]
+              properties:
+                ssid:
+                  type: string
+                  description: The session id from the login.
+      responses:
+        "200":
+          description: HTML with the menus of every level, see the top.
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /sec_dynamicjs.cgi:
+    get:
+      operationId: getDynamicScript
+      summary: Session-specific script with the CSRF token
+      x-evidence: verified
+      responses:
+        "200":
+          description: >
+            JavaScript (sent as `text/html`) with constants, the UI texts in
+            the panel's language and the session's CSRF token as
+            `var CSRF_TOKEN=<number>;` (eight digits seen). Also
+            `INACTIVITY_TIMEOUT_MS` (60000 for a normal user) and
+            `NUM_PASSCODE_DIGITS_TO_MATCH`.
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /sec_global_status.cgx:
+    get:
+      operationId: getGlobalStatus
+      summary: Open zones and status icons
+      x-evidence: verified
+      description: >
+        Polled every 2 s by the main page, with a cache-busting query
+        parameter `_` and without the CSRF token. A 401 sends the page back
+        to the start page (from the page's script).
+      responses:
+        "200":
+          description: >
+            `<form>` with `<authorised>true</authorised>`, `<open_zones>`
+            with one `<zone>` per open zone (`<name>`, `<state>` as UI text,
+            e.g. "Offen", `<partitions>`; no zone number), and `<vis>`
+            updates for status icons (voice message waiting, inactivity).
+          content:
+            text/xml:
+              schema:
+                type: string
+              examples:
+                two-open-zones:
+                  externalValue: fixtures/GET_sec_global_status.cgx.xml
+
+  /sec_welcome.cgi:
+    post:
+      operationId: getWelcomePage
+      summary: Overview page
+      x-evidence: verified
+      description: >
+        The overview loaded into the main page: a tab per partition and the
+        lists for status, faults ("Störungen") and open zones, filled by the
+        scripts (also from the REST API's /system/partitions/ and /faults/).
+      requestBody:
+        $ref: "#/components/requestBodies/ListingForm"
+      responses:
+        "200":
+          description: HTML fragment.
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /sec_welcome.cgx:
+    post:
+      operationId: getWelcomeData
+      summary: Data of the overview page
+      x-evidence: verified
+      description: Polled every 2.5–5 s while the overview is shown.
+      requestBody:
+        $ref: "#/components/requestBodies/ListingForm"
+      responses:
+        "200":
+          description: >
+            `<form>` with `<autoset-warn>` and `<read-only>` (`no`), and
+            `<text>`/`<col>` updates: the panel's time (`rtm600`, `HH:MM`) and
+            date (`rtm601`, `DD/MM/YYYY`), case tamper (`rtm100`) and the
+            voltages, with the same ids and meaning as in
+            POST /sec_about_panel.cgx (only a subset).
+          content:
+            text/xml:
+              schema:
+                type: string
+              examples:
+                overview:
+                  externalValue: fixtures/POST_sec_welcome.cgx.xml
+
+  /events.cgx:
+    post:
+      operationId: exchangeEvents
+      summary: Send queued events to the panel, receive its events
+      x-evidence: verified
+      description: >
+        Polled about every second by the main page, without the CSRF token.
+        The body carries the events the page has queued for the panel as
+        JSON, or an empty JSON string. Events seen at the start of the main
+        page: `{"panelTest_stopTests":0}`, `{"radioDevice_cancelAll":0}` and
+        `{"firmwareCheckUpdate":0}` (makes the panel check for a firmware
+        update). These are commands: a client that only reads must send the
+        empty string, if it uses this request at all.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [events]
+              properties:
+                events:
+                  type: string
+                  description: JSON, e.g. `""` or `{"firmwareCheckUpdate":0}`.
+      responses:
+        "200":
+          description: >
+            `<events>` with one `<event>` (`<type>`, `<data>` as UI text) per
+            event of the panel, or empty.
+          content:
+            text/xml:
+              schema:
+                type: string
+              examples:
+                empty:
+                  externalValue: fixtures/POST_events.cgx.xml
+                firmware-check:
+                  externalValue: fixtures/POST_events.cgx.example2.xml
+                no-update:
+                  externalValue: fixtures/POST_events.cgx.example3.xml
+
+  /sec_zones_omit.cgi:
+    post:
+      operationId: getZonesToOmitPage
+      summary: List of the zones the user may omit
+      x-evidence: verified
+      description: >
+        Menu entry "Zonen ausblenden". Only opened, nothing omitted.
+      requestBody:
+        $ref: "#/components/requestBodies/ListingForm"
+      responses:
+        "200":
+          description: >
+            HTML table with one row per omittable zone: number with the kind
+            (e.g. `Z201 FUNK`), name in quotes, and a checkbox whose change
+            calls `Zones.toggleZoneOmitForUiZoneNumber(this, <zone>)`. That
+            function sends a request to the REST API, not to the web
+            interface: `PUT /system/partitions/zones-<zone>/` (no partition
+            number in the path) with `Content-Type: application/json` and
+            `{"omitted": "true"}` or `{"omitted": "false"}` (strings, not
+            booleans), and takes `omitted` from the answer (from the script,
+            not captured).
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /sec_about_panel.cgi:
+    post:
+      operationId: getAboutPanelPage
+      summary: Info → Zentrale
+      x-evidence: verified
+      description: Visible to a normal user.
+      requestBody:
+        $ref: "#/components/requestBodies/ListingForm"
+      responses:
+        "200":
+          description: >
+            HTML with the firmware version (`v3.01.31`) and language pack
+            (`Deutsch v1.47`), the serial number (installation-specific),
+            a part number that isn't
+            exact (`FUAA50XXX`), "RF Device Exclusivity", the number of
+            zones available and used per kind (IP, wireless, wired, HyMo),
+            of wireless sirens, indoor sounders, RF repeaters, wireless
+            keypads, door locks and hybrid modules, of partitions and of
+            outputs, and the elements the data below fills in. The REST API
+            reports none of these.
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /sec_about_panel.cgx:
+    post:
+      operationId: getAboutPanelData
+      summary: Data of Info → Zentrale
+      x-evidence: verified
+      description: Polled every 3 s while the page is shown.
+      requestBody:
+        $ref: "#/components/requestBodies/ListingForm"
+      responses:
+        "200":
+          description: >
+            `<text>` and `<col>` updates, labels from the page: time
+            (`rtm600`) and date (`rtm601`); "Ja"/"Nein" with a colour (red
+            when "Ja") for case tamper (`rtm100`, "Gehäuse Sabo"), sounder
+            tamper (`rtm101`, "SG Sabo"), RF jamming (`rtm102`), mains
+            fault (`rtm103`, "AC Störung Zentrale") and external DC fault
+            (`rtm104`, "Externe DC Störung"); voltages of the external DC
+            input (`rtm110_0`), battery 1 (`rtm112_0`), auxiliary output
+            (`rtm114_0`), and the state of battery 2 (`rtm113_1`, e.g.
+            "Gesperrt" when not used). Values are UI texts in the panel's
+            language, voltages formatted like ` 8.0V`.
+          content:
+            text/xml:
+              schema:
+                type: string
+              examples:
+                about:
+                  externalValue: fixtures/POST_sec_about_panel.cgx.xml
+
+  /index.htm:
+    post:
+      operationId: logout
+      summary: Log out
+      x-evidence: verified
+      description: >
+        The logout form of the main page; writes "Ben<nnn> Log out(Web)" to
+        the log. Submitted by the "Abmelden" button and by the page's
+        inactivity timer. A logout with a session the panel had already ended
+        (idle for a minute) got the same 200 and wrote no second log entry
+        (tested once), so a late logout is harmless.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [logout]
+              properties:
+                ssid:
+                  type: string
+                  description: Sent empty by the page; the session comes from the cookie.
+                logout:
+                  type: string
+                  enum: [logout]
+      responses:
+        "200":
+          description: The start page, which redirects to the login.
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /sec_zones.cgi:
+    post:
+      operationId: getZonesPage
+      summary: Component list (installer menu)
+      x-evidence: verified
+      x-sources: [dkmouk/secvest-ha]
+      description: >
+        Page of the installer's menu Komponenten → IP/Funk/Draht/HyMo Zonen
+        (`bus` selects the kind, 0 = wireless; the others from the script,
+        not captured). A normal user's session gets it too, although its
+        menu hides it.
+      requestBody:
+        $ref: "#/components/requestBodies/ListingForm"
+      responses:
+        "200":
+          description: >
+            HTML table with one row per zone slot, unused ones included (48
+            for wireless, `Z201`–`Z248`), each with `data-zone_idx` (the
+            row, counted from 0: zone number − 201 for wireless), the
+            number with the kind (`Z201 FUNK`), name, partitions ("Keine"
+            for an unused slot), zone type ("Normal Alarm", "Ein/Ausgang",
+            "nicht verwendet", …) and properties as UI text (e.g.
+            "Supervision, Intern überwacht, Ausblendbar"), then the status
+            cells the data fills in: `rtm8`, `rtm9`, `rtm5`, `rtm11`,
+            `rtm10` (each a `<div>` hidden by default) and the signal
+            strength `rtm2`. The column guide above them names, in this
+            order: battery low ("Batterie schwach"), omitted
+            ("Ausblenden"), supervision fault ("Supervisionsstörung"),
+            tamper ("Sabotage"), open ("Offen"), RSSI. The REST API has
+            neither the zone type nor these properties as text. On the test
+            panel "Ausblendbar" matched the REST API's `omittable` for all
+            19 zones, and "Intern überwacht" its `inner` (all 19 have it, so
+            this doesn't tell the two apart). The page also offers buttons
+            to change and delete zones; they weren't used. dkmouk/secvest-ha
+            reads `<nloggedin>` in an answer as "not logged in".
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /sec_zones.cgx:
+    post:
+      operationId: getZonesData
+      summary: Status columns of the wireless zones (installer menu)
+      x-evidence: verified
+      x-sources: [dkmouk/secvest-ha]
+      description: >
+        The data of the component list. A normal user's session gets it
+        too, also without requesting `sec_zones.cgi` or `sec_main.cgi` first
+        (see the minimal client sequence at the top). The main page polls it
+        every 2.5–5 s while the list is shown. dkmouk/secvest-ha polls
+        it directly, reusing the session, and logs in again when the answer
+        contains no `rtm` id.
+
+
+        All rows come in one answer (48 for wireless), although the form
+        says `table_range=10`; the page shows 8 per page itself. A row has
+        no zone number; it is the row of `sec_zones.cgi` (`data-zone_idx`,
+        for wireless the zone number − 201). dkmouk/secvest-ha instead
+        matches row n with the n-th zone of the REST API's zone list, which
+        is wrong as soon as a slot is unused or another kind of zone comes
+        first.
+      requestBody:
+        $ref: "#/components/requestBodies/ListingForm"
+      responses:
+        "200":
+          description: >
+            `<form>` with `<autoset-warn>`, `<read-only>` and per row
+            (ids `rtm<column>_<row>`):
+
+
+            | Id | Update | Content |
+
+            |---|---|---|
+
+            | `rtm1` | `<bargraph>` | Signal strength as a bar, 4 × the level of `rtm2` (0–36) |
+
+            | `rtm2` | `<text>` | Signal strength as shown: the level of the last received signal, then in parentheses the lowest level since the last reset, separated by `<br/>`, e.g. `9<br/>(3)`; empty for an unused slot |
+
+            | `rtm7` | `<text>` | The same as `rtm2` without the line break, e.g. `9(3)` |
+
+            | `rtm6` | `<text>` | The same for the zone's signal as the RF repeater receives it (presumably; it varies per zone, so it isn't the repeater's own link to the panel), `-(-)` when no repeater repeats the zone |
+
+            | `rtm10` | `<disp>` | Open: `block` (icon shown) or `none`; matched the REST API's zone state for all zones |
+
+            | `rtm8` | `<disp>` | Battery low (column guide; dkmouk/secvest-ha agrees; not observed yet) |
+
+            | `rtm9` | `<disp>` | Omitted: `block` while the zone is omitted (observed) |
+
+            | `rtm5` | `<disp>` | Supervision fault (column guide; not observed yet) |
+
+            | `rtm11` | `<disp>` | Tamper (column guide; not observed yet) |
+
+
+            The status columns follow from `sec_zones.cgi`: its column
+            guide names the six cells of a row in order, and the cells are
+            `rtm8`, `rtm9`, `rtm5`, `rtm11`, `rtm10`, `rtm2`. Positions 2, 5
+            and 6 are confirmed by observation: omitting a zone turned on
+            exactly its `rtm9` (and nothing else), open (`rtm10`) matched the
+            REST API, and `rtm2` holds the signal strength. Battery low,
+            supervision fault and tamper haven't been seen on yet.
+            dkmouk/secvest-ha agrees on battery low, open and the signal
+            strength, but reads `rtm5` as omitted, `rtm9` as tamper and
+            `rtm11` as supervision fault, so it shows an omitted zone as
+            tampered.
+
+
+            The meaning of the two numbers is defined in the installer
+            manual for the signal strength test (Test → Signalstärken), not
+            for this list; the same format suggests the same meaning, and
+            the data fits it: in every row captured, and in a third-party
+            screenshot, the number in parentheses is lower than or equal to
+            the first one.
+
+
+            The levels go from 0 to 9 (installer manual: 0 below −101 dBm,
+            steps of 3 dB, 9 at −77 dBm or more; above 3 is recommended),
+            see docs/panel-behavior.md. The "Direkt" and "Repeater" columns
+            the manual describes for the signal strength test presumably are
+            `rtm7` and `rtm6`. dkmouk/secvest-ha reads `<vis>` values; the
+            panel sends `<disp>`, whose `none` it also reads as "off".
+          content:
+            text/xml:
+              schema:
+                type: string
+              examples:
+                wireless-zones:
+                  externalValue: fixtures/POST_sec_zones.cgx.xml
+                one-zone-omitted:
+                  externalValue: fixtures/POST_sec_zones.cgx.example2.xml
+        "401":
+          description: >
+            The session has ended (idle for about a minute, or logged out).
+            Small HTML body without a `Content-Type`.
+          content:
+            text/html:
+              schema:
+                type: string
+              examples:
+                expired:
+                  externalValue: fixtures/POST_sec_zones.cgx.401.html
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: ssid
+      description: >
+        Session id from the login, stored as a cookie by the page's script.
+        The page also sends the session's CSRF token in the form field
+        `csrf_token` (see GET /sec_dynamicjs.cgi); `sec_zones.cgx` answered
+        without it as well.
+
+  requestBodies:
+    ListingForm:
+      description: >
+        The form the main page's scripts send with every page and most data
+        requests (`gPostObject`). The values describe the current
+        navigation: `bus` and `busdevice` the bus and device whose
+        components are listed (`bus` 0 = wireless, from the script's
+        constants; the overview and the zones to omit were requested with
+        `bus=1`), `edit` and `editSecondary` the item being edited,
+        `listingType` `busDevice` or `systemWide`, `table_start_index` and
+        `table_range` the rows of a paged list. Values as captured for the
+        overview: bus=1, busdevice=0, edit=0, editSecondary=0,
+        panelOutputsArePlugby=0, listingType=busDevice, listingIOMod=0,
+        table_start_index=0, table_range=10, contact_index=0.
+      required: true
+      content:
+        application/x-www-form-urlencoded:
+          schema:
+            type: object
+            required: []
+            properties:
+              bus:
+                type: string
+              busdevice:
+                type: string
+              edit:
+                type: string
+              editSecondary:
+                type: string
+              panelOutputsArePlugby:
+                type: string
+              listingType:
+                type: string
+                enum: [busDevice, systemWide]
+              listingIOMod:
+                type: string
+              table_start_index:
+                type: string
+              table_range:
+                type: string
+              contact_index:
+                type: string
+              csrf_token:
+                type: string
+                description: >
+                  The session's CSRF token (GET /sec_dynamicjs.cgi). The page
+                  always sends it; `sec_zones.cgx` doesn't need it (tested).
