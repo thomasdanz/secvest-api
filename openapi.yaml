@@ -68,9 +68,9 @@ info:
       instead of the user's credentials (see openapi-webui.yaml). Without a
       web session, that header gets the empty `403` described below, not a
       `401` (tested once). Their checkbox for omitting a zone sends
-      `PUT /system/partitions/zones-{zone}/` without a partition number and
-      with `{"omitted": "true"}` as a string (from the script, not captured;
-      the app uses the path with the partition).
+      `PUT /system/partitions/zones-{zone}/` without a partition number,
+      which also works with Basic Auth (see that path; the app uses the
+      path with the partition).
 
     - An unsupported method gets `403` with an empty body (seen for PUT
       /faults/ and POST /system/partitions-1/zones-209/), not 405. The same empty 403 comes for
@@ -654,6 +654,107 @@ paths:
               examples:
                 unknownZone:
                   externalValue: fixtures/PUT_system_partitions-1_zones-220.404.html
+
+  /system/partitions/zones/:
+    get:
+      summary: Zone list without a partition number (empty)
+      description: >
+        Answers 200 with an empty list (tested 2026-10-10 with Basic Auth of a
+        normal user with rights for partition 1),
+        although the panel has zones. So there is no zone list across
+        partitions; read the zones per partition.
+      x-evidence: verified
+      responses:
+        "200":
+          description: An empty list
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 0
+              examples:
+                default:
+                  externalValue: fixtures/GET_system_partitions_zones.json
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
+
+  /system/partitions/zones-{zone}/:
+    parameters:
+      - $ref: "#/components/parameters/zone"
+    get:
+      summary: One zone, without a partition number
+      description: >
+        Returns the same object as /system/partitions-{partition}/zones-{zone}/
+        (tested 2026-10-10 with Basic Auth of a normal user, zone 209). The app
+        doesn't use this path.
+      x-evidence: verified
+      responses:
+        "200":
+          description: The zone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Zone"
+              examples:
+                default:
+                  externalValue: fixtures/GET_system_partitions_zones-209.json
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InstallerLoggedIn"
+    put:
+      summary: Omit a zone or include it again, without a partition number
+      description: >
+        The path the web interface's script uses for omitting. With Basic
+        Auth it behaves like PUT /system/partitions-{partition}/zones-{zone}/:
+        `{"omitted": "true"}` omitted the zone and `{"omitted": "false"}`
+        included it again, each answered 200 with the zone after the change
+        (tested 2026-10-10 by a normal user with rights for partition 1, zone
+        209 of partition 1, an open omittable zone). The error answers were not tested on this path.
+
+
+        Open: which partition rights the panel checks here. With a partition
+        in the path, a user without rights for the zone's partition gets the
+        empty 403; without one, it may check the zone's partitions, any of
+        them, or none. Not tested yet; the test panel has no zone in several
+        partitions.
+      x-evidence: verified
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [omitted]
+              properties:
+                omitted:
+                  type: string
+                  enum: ["true", "false"]
+            examples:
+              omit:
+                externalValue: fixtures/PUT_system_partitions_zones-209.request.json
+              include:
+                externalValue: fixtures/PUT_system_partitions_zones-209.example2.request.json
+      responses:
+        "200":
+          description: The zone after the change
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Zone"
+              examples:
+                omitted:
+                  externalValue: fixtures/PUT_system_partitions_zones-209.json
+                included:
+                  externalValue: fixtures/PUT_system_partitions_zones-209.example2.json
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: >
+            Presumably as for the path with a partition (not omittable, no
+            rights, or the installer is logged in); not tested on this path.
 
   /register/:
     put:
