@@ -447,8 +447,8 @@ paths:
             interface: `PUT /system/partitions/zones-<zone>/` (no partition
             number in the path) with `Content-Type: application/json` and
             `{"omitted": "true"}` or `{"omitted": "false"}` (strings, not
-            booleans), and takes `omitted` from the answer (from the script,
-            not captured).
+            booleans), and takes `omitted` from the answer (from the script;
+            the same request with Basic Auth works, see openapi.yaml).
           content:
             text/html:
               schema:
