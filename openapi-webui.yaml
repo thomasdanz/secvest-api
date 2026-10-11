@@ -460,7 +460,11 @@ paths:
       operationId: getAboutPanelPage
       summary: Info → Zentrale
       x-evidence: verified
-      description: Visible to a normal user.
+      description: >
+        Visible to a normal user. Like the zone list's data, it answers in a
+        session without the main page and without the CSRF token: a plain
+        client sent login, `sec_zones.cgx`, this page (the overview's form,
+        `bus=1`) and the logout, all 200 (2026-10-11).
       requestBody:
         $ref: "#/components/requestBodies/ListingForm"
       responses:
@@ -475,6 +479,16 @@ paths:
             keypads, door locks and hybrid modules, of partitions and of
             outputs, and the elements the data below fills in. The REST API
             reports none of these.
+
+
+            Structure (observed on firmware v3.01.31): `<li>` elements with
+            the class `information`; the first one holds the firmware and the
+            language pack, the second the serial number and the part number,
+            each value in its own `<span>`, after a label in the panel's
+            language ("Version:", "Sprache:", "Serien Nr.:", "Part No.:").
+            A client reads the values by this structure and their formats
+            (`v<n>.<n>.<n>`; the serial number letters, digits and `#`), not
+            by the labels.
           content:
             text/html:
               schema:
