@@ -1524,6 +1524,20 @@ components:
           description: >
             Text as shown on the panel, e.g. "Ben 001 TB 1 aktiv" (user 1 armed
             partition 1), "Einbruch Z202 Alarm", "REP01 Batt schwach".
+            Free text in the panel's language, with no event code beside it.
+            Many texts are templates of the language pack with the numbers
+            filled in (German v1.47: "Ben -- TB # aktiv", "Ben-- Log in
+            (Web)", "Ben--TB # Übergehen"; "-"/"#" stand for numbers of
+            varying length); 22 of the 31 text patterns in the test panel's
+            log matched a template (checked 2026-10-19). The others are
+            composed from fragments ("Einbruch Z202 Alarm", "Sabotage Z216",
+            "Ben003 Zone213 ausgeblendet", "REP01 PSU Störung", "Eing gest.
+            Z219"). Spacing differs between templates of the same kind ("Ben
+            001 TB 1 aktiv", "Ben003 TB 1 intern aktiv", "Ben001TB 1
+            Übergehen"), and texts are abbreviated to fit the display. So a
+            client can't classify entries reliably by their text; type and
+            the fields of events (partition, zone, user) are the structured
+            part.
         events:
           type: array
           description: Exactly one element in every entry seen so far.
